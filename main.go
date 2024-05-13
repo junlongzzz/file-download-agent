@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -23,7 +24,10 @@ var downloadHandler = &handler.DownloadHandler{}
 
 // 程序入口执行函数
 func main() {
-	fmt.Printf("File Download Agent %s (%s %s/%s)\n", version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	// 设置日志输出级别
+	slog.SetLogLoggerLevel(slog.LevelInfo)
+
+	slog.Info(fmt.Sprintf("File Download Agent %s (%s %s/%s)", version(), runtime.Version(), runtime.GOOS, runtime.GOARCH))
 
 	// 从环境变量内读取运行参数
 	port, _ := strconv.Atoi(os.Getenv("FDA_PORT"))
@@ -37,7 +41,7 @@ func main() {
 
 	if signKey != "" {
 		downloadHandler.SignKey = signKey
-		fmt.Println("Enable url check sign:", signKey)
+		slog.Info(fmt.Sprintf("Enable sign check, sign key: %s", signKey))
 	}
 
 	// 启动服务器
@@ -72,10 +76,10 @@ Usage:
 	})
 
 	// 启动HTTP服务器
-	fmt.Printf("Server is running on :%d...\n", port)
+	slog.Info(fmt.Sprintf("Server is running on :%d...", port))
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), serveMux)
 	if err != nil {
-		fmt.Printf("Server error: %v\n", err)
+		slog.Error(fmt.Sprintf("Server error: %v", err))
 		os.Exit(1)
 	}
 }

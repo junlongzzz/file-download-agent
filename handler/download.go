@@ -1,15 +1,14 @@
 package handler
 
 import (
+	"file-download-agent/common"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
-	"time"
-
-	"file-download-agent/common"
 )
 
 type DownloadHandler struct {
@@ -88,8 +87,7 @@ func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			// 处理关闭错误
-			fmt.Println("Error closing response body:", err)
+			slog.Error(fmt.Sprintf("Failed to close response body: %v", err))
 		}
 	}(response.Body)
 
@@ -116,11 +114,10 @@ func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 打印下载日志 输出时间、访问UA、文件名、下载地址、文件大小
-	fmt.Printf("%s | %s - %s | Size: %s | IP: %s | UA: %s\n",
-		time.Now().Format("2006-01-02 15:04:05"),
-		filename,
+	slog.Info(fmt.Sprintf("%s - %s | Size: %s | IP: %s | UA: %s",
 		urlStr,
+		filename,
 		common.FormatBytes(bytesCopied),
 		common.GetRealIP(r),
-		r.Header.Get("User-Agent"))
+		r.Header.Get("User-Agent")))
 }
