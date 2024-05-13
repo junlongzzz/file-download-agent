@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"file-download-agent/common"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,28 +8,25 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"file-download-agent/common"
 )
 
 type DownloadHandler struct {
-	SignKey string // 参数校验签名key，首字母大写表示外部可调用
+	SignKey string       // 参数校验签名key
+	Client  *http.Client // 发起请求的http客户端
 }
 
-// 创建一个 HTTP 客户端
-var client = &http.Client{
-	Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment, // 从环境变量中读取代理设置
-	},
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		// 设置最大重定向次数
-		if len(via) >= 20 {
-			return fmt.Errorf("too many redirects")
-		}
-		return nil
-	},
+// NewDownloadHandler 初始化并赋默认值
+func NewDownloadHandler() *DownloadHandler {
+	return &DownloadHandler{
+		SignKey: "",
+		Client:  defaultHTTPClient(),
+	}
 }
 
 // Download 文件下载处理函数，首字母大写表示外部可调用
-func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
+func (dh *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	// 只接受get方式请求
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -58,8 +54,8 @@ func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if d.SignKey != "" &&
-		strings.ToLower(sign) != common.CalculateMD5(filename+"|"+urlStr+"|"+d.SignKey) {
+	if dh.SignKey != "" &&
+		strings.ToLower(sign) != common.CalculateMD5(filename+"|"+urlStr+"|"+dh.SignKey) {
 		// 数据签名不匹配，返回错误信息
 		http.Error(w, "Invalid sign", http.StatusBadRequest)
 		return
@@ -79,7 +75,7 @@ func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	// 设置请求头
 	request.Header.Set("User-Agent", r.Header.Get("User-Agent"))
 	// 发送 HTTP 请求
-	response, err := client.Do(request)
+	response, err := dh.Client.Do(request)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to send request: %v", err), http.StatusInternalServerError)
 		return
@@ -120,4 +116,20 @@ func (d *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 		common.FormatBytes(bytesCopied),
 		common.GetRealIP(r),
 		r.Header.Get("User-Agent")))
+}
+
+// 默认的请求发起http客户端
+func defaultHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment, // 从环境变量中读取代理设置
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 设置最大重定向次数
+			if len(via) >= 20 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
 }

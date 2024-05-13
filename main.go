@@ -20,7 +20,7 @@ var (
 )
 
 // 声明下载处理器
-var downloadHandler = &handler.DownloadHandler{}
+var downloadHandler = handler.NewDownloadHandler()
 
 // 程序入口执行函数
 func main() {
@@ -76,8 +76,9 @@ Usage:
 	})
 
 	// 启动HTTP服务器
-	slog.Info(fmt.Sprintf("Server is running on :%d...", port))
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), serveMux)
+	addr := fmt.Sprintf(":%d", port)
+	slog.Info(fmt.Sprintf("Server is running on %s...", addr))
+	err := http.ListenAndServe(addr, serveMux)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Server error: %v", err))
 		os.Exit(1)
