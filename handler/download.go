@@ -10,11 +10,13 @@ import (
 	"strings"
 
 	"file-download-agent/common"
+	"github.com/mssola/useragent"
 )
 
 type DownloadHandler struct {
-	SignKey string       // 参数校验签名key
-	Client  *http.Client // 发起请求的http客户端
+	SignKey string               // 参数校验签名key
+	Client  *http.Client         // 发起请求的http客户端
+	ua      *useragent.UserAgent // 解析user-agent的工具
 }
 
 // NewDownloadHandler 初始化并赋默认值
@@ -22,6 +24,7 @@ func NewDownloadHandler() *DownloadHandler {
 	return &DownloadHandler{
 		SignKey: "",
 		Client:  defaultHTTPClient(),
+		ua:      &useragent.UserAgent{},
 	}
 }
 
@@ -67,7 +70,7 @@ func (dh *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 发起GET请求
-	request, err := http.NewRequest("GET", urlStr, nil)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, urlStr, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
@@ -109,13 +112,16 @@ func (dh *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 解析user-agent
+	dh.ua.Parse(r.Header.Get("User-Agent"))
+	brwName, brwVersion := dh.ua.Browser()
 	// 打印下载日志 输出时间、访问UA、文件名、下载地址、文件大小
-	slog.Info(fmt.Sprintf("%s - %s | Size: %s | IP: %s | UA: %s",
+	slog.Info(fmt.Sprintf("%s - %s | Size: %s | IP: %s | UA: %s/%s(%s)",
 		urlStr,
 		filename,
 		common.FormatBytes(bytesCopied),
 		common.GetRealIP(r),
-		r.Header.Get("User-Agent")))
+		dh.ua.OS(), brwName, brwVersion))
 }
 
 // 默认的请求发起http客户端
