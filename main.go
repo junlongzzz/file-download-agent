@@ -41,7 +41,7 @@ func main() {
 
 	if signKey != "" {
 		downloadHandler.SignKey = signKey
-		slog.Info(fmt.Sprintf("Enable sign check, sign key: %s", signKey))
+		slog.Info("Enable sign check")
 	}
 
 	// 启动服务器
