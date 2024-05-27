@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN go build -o fda .
+RUN go build -o fda -trimpath -ldflags "-s -w" -v .
 
 
 FROM alpine:latest
