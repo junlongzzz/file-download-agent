@@ -28,8 +28,24 @@ func NewDownloadHandler() *DownloadHandler {
 	}
 }
 
-// Download 文件下载处理函数，首字母大写表示外部可调用
-func (dh *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
+// 默认的请求发起http客户端
+func defaultHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment, // 从环境变量中读取代理设置
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 设置最大重定向次数
+			if len(via) >= 20 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
+}
+
+// 文件下载处理函数，实现了 Handler 接口
+func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 只接受get方式请求
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
@@ -122,20 +138,4 @@ func (dh *DownloadHandler) Download(w http.ResponseWriter, r *http.Request) {
 		common.FormatBytes(bytesCopied),
 		common.GetRealIP(r),
 		dh.ua.OS(), brwName, brwVersion))
-}
-
-// 默认的请求发起http客户端
-func defaultHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment, // 从环境变量中读取代理设置
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// 设置最大重定向次数
-			if len(via) >= 20 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
-	}
 }

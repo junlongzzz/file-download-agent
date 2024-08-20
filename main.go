@@ -71,9 +71,7 @@ Usage:
 		_, _ = fmt.Fprintf(w, desc, version())
 	})
 	// 注册文件下载路由
-	serveMux.HandleFunc("/download", func(w http.ResponseWriter, r *http.Request) {
-		downloadHandler.Download(w, r)
-	})
+	serveMux.Handle("/download", downloadHandler)
 
 	// 启动HTTP服务器
 	addr := fmt.Sprintf(":%d", port)
