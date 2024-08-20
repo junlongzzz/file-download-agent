@@ -1,10 +1,10 @@
-FROM golang:alpine as builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
 
 COPY . .
 
-RUN go build -o fda -trimpath -ldflags "-s -w" -v .
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -v -o fda
 
 
 FROM alpine:latest
