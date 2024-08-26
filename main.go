@@ -16,7 +16,7 @@ import (
 var (
 	versionX byte = 1
 	versionY byte = 0
-	versionZ byte = 1
+	versionZ byte = 2
 )
 
 // 声明下载处理器
