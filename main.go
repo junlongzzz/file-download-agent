@@ -30,10 +30,12 @@ func main() {
 	slog.Info(fmt.Sprintf("File Download Agent %s (%s %s/%s)", version(), runtime.Version(), runtime.GOOS, runtime.GOARCH))
 
 	// 从环境变量内读取运行参数
+	host := os.Getenv("FDA_HOST")
 	port, _ := strconv.Atoi(os.Getenv("FDA_PORT"))
 	signKey := os.Getenv("FDA_SIGN_KEY")
 	// 从运行参数中获取运行参数
 	// 会覆盖环境变量的值，如果不存在默认就使用环境变量内的值
+	flag.StringVar(&host, "host", host, "server host")
 	flag.IntVar(&port, "port", port, "server port")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
 	// 解析命令行参数
@@ -45,11 +47,11 @@ func main() {
 	}
 
 	// 启动服务器
-	server(port)
+	server(host, port)
 }
 
 // 启动HTTP服务器
-func server(port int) {
+func server(host string, port int) {
 	if port <= 0 || port >= 65535 {
 		// 不合法端口号，重置为默认端口
 		port = 18080
@@ -74,10 +76,9 @@ Usage:
 	serveMux.Handle("/download", downloadHandler)
 
 	// 启动HTTP服务器
-	addr := fmt.Sprintf(":%d", port)
+	addr := fmt.Sprintf("%s:%d", host, port)
 	slog.Info(fmt.Sprintf("Server is running on %s...", addr))
-	err := http.ListenAndServe(addr, serveMux)
-	if err != nil {
+	if err := http.ListenAndServe(addr, serveMux); err != nil {
 		slog.Error(fmt.Sprintf("Server error: %v", err))
 		os.Exit(1)
 	}

@@ -12,16 +12,27 @@ go build -o fda .
 
 ### Command
 
-```shell
-chmod +x fda
-./fda --port=18080 --sign-key=<your_sign_key>
-```
+- Args
 
 ```shell
+chmod +x fda
+./fda --host=127.0.0.1 --port=18080 --sign-key=<your_sign_key>
+```
+
+- Env
+
+```shell
+export FDA_HOST=127.0.0.1
 export FDA_PORT=18080
 export FDA_SIGN_KEY=<your_sign_key>
 chmod +x fda
 ./fda
+```
+
+- Use [Task](https://taskfile.dev)
+
+```shell
+task run
 ```
 
 ### Docker

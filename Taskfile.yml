@@ -1,0 +1,17 @@
+version: '3'
+tasks:
+  build:
+    platforms:
+      - windows
+    env:
+      CGO_ENABLED: 0
+    cmds:
+      - go build -ldflags="-s -w" -trimpath -o ./out/fda.exe .
+
+  run:
+    platforms:
+      - windows
+    deps:
+      - build
+    cmds:
+      - ./out/fda.exe --host=127.0.0.1 --port=18080
