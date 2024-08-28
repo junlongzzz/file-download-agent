@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 
@@ -22,6 +23,19 @@ var (
 // 声明下载处理器
 var downloadHandler = handler.NewDownloadHandler()
 
+// 程序描述信息
+const description = `Name: File Download Agent
+Description: File download agent server written in golang.
+Version: %s
+Author: Junlong Zhang <junlong.plus>
+Usage:
+  Endpoint: /download
+  Method: GET
+  Parameters: url (required), filename (optional), sign (optional)
+  Remarks:
+    - sign = MD5(filename + "|" + url + "|" + signKey)
+    - supported url schemes: http, https, file (NOTICE: relative file path)`
+
 // 程序入口执行函数
 func main() {
 	// 设置日志输出级别
@@ -33,11 +47,13 @@ func main() {
 	host := os.Getenv("FDA_HOST")
 	port, _ := strconv.Atoi(os.Getenv("FDA_PORT"))
 	signKey := os.Getenv("FDA_SIGN_KEY")
+	dir := os.Getenv("FDA_DIR")
 	// 从运行参数中获取运行参数
 	// 会覆盖环境变量的值，如果不存在默认就使用环境变量内的值
 	flag.StringVar(&host, "host", host, "server host")
 	flag.IntVar(&port, "port", port, "server port")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
+	flag.StringVar(&dir, "dir", dir, "download directory, default current execute path")
 	// 解析命令行参数
 	flag.Parse()
 
@@ -45,6 +61,20 @@ func main() {
 		downloadHandler.SignKey = signKey
 		slog.Info("Enable sign check")
 	}
+
+	if dir != "" {
+		downloadHandler.Dir = dir
+	} else {
+		// 默认下载目录为当前程序执行目录
+		executable, err := os.Executable()
+		if err != nil {
+			slog.Error(fmt.Sprintf("Get executable path error: %v", err))
+			os.Exit(1)
+		} else {
+			downloadHandler.Dir = filepath.Dir(executable)
+		}
+	}
+	slog.Info(fmt.Sprintf("download directory: %s", downloadHandler.Dir))
 
 	// 启动服务器
 	server(host, port)
@@ -61,16 +91,7 @@ func server(host string, port int) {
 	serveMux := http.NewServeMux()
 	// 注册默认根路径路由
 	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		desc := `Name: File Download Agent
-Description: This is file download agent server written in golang.
-Version: %s
-Author: Junlong Zhang
-Usage:
-  Endpoint: /download
-  Method: GET
-  Parameters: url (required), filename (optional), sign (optional)
-  Remarks: sign = MD5(filename + "|" + url + "|" + signKey)`
-		_, _ = fmt.Fprintf(w, desc, version())
+		_, _ = fmt.Fprintf(w, description, version())
 	})
 	// 注册文件下载路由
 	serveMux.Handle("/download", downloadHandler)
