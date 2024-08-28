@@ -136,13 +136,12 @@ func (dh *DownloadHandler) downloadUrl(w http.ResponseWriter, r *http.Request, d
 		}
 	}(response.Body)
 
-	if response.StatusCode != 200 {
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		// 请求下载链接状态码不为成功就不进行后续操作
 		http.Error(w, fmt.Sprintf("Request failed: %s - %s", downUrl, response.Status), response.StatusCode)
 		return -1
 	}
 
-	// 设置响应头
 	// 设置响应头
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", url.QueryEscape(filename)))
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -170,15 +169,15 @@ func (dh *DownloadHandler) downloadFile(w http.ResponseWriter, downPath string, 
 	filePath := filepath.Join(dh.Dir, downPath)
 	// 检查文件是否存在
 	fileInfo, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return -1
-	}
 	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return -1
+		}
 		http.Error(w, "Unable to retrieve file info", http.StatusInternalServerError)
 		return -1
 	}
-	if !fileInfo.Mode().IsRegular() {
+	if fileInfo.IsDir() {
 		http.Error(w, "Requested path is not a file", http.StatusBadRequest)
 		return -1
 	}

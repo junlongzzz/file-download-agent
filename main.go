@@ -34,7 +34,7 @@ Usage:
   Parameters: url (required), filename (optional), sign (optional)
   Remarks:
     - sign = MD5(filename + "|" + url + "|" + signKey)
-    - supported url schemes: http, https, file (NOTICE: relative file path)`
+    - supported url schemes: http, https, file (NOTICE: relative path e.g. file:///path/to/file.txt)`
 
 // 程序入口执行函数
 func main() {
@@ -53,7 +53,7 @@ func main() {
 	flag.StringVar(&host, "host", host, "server host")
 	flag.IntVar(&port, "port", port, "server port")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
-	flag.StringVar(&dir, "dir", dir, "download directory, default current execute path")
+	flag.StringVar(&dir, "dir", dir, "download directory, default ./files")
 	// 解析命令行参数
 	flag.Parse()
 
@@ -71,10 +71,10 @@ func main() {
 			slog.Error(fmt.Sprintf("Get executable path error: %v", err))
 			os.Exit(1)
 		} else {
-			downloadHandler.Dir = filepath.Dir(executable)
+			downloadHandler.Dir = filepath.Join(filepath.Dir(executable), "files")
 		}
 	}
-	slog.Info(fmt.Sprintf("download directory: %s", downloadHandler.Dir))
+	slog.Info(fmt.Sprintf("Download directory: %s", downloadHandler.Dir))
 
 	// 启动服务器
 	server(host, port)
