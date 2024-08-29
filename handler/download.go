@@ -77,8 +77,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if dh.SignKey != "" &&
-		strings.ToLower(sign) != common.CalculateMD5(filename+"|"+urlStr+"|"+dh.SignKey) {
+	if dh.SignKey != "" && strings.ToLower(sign) != common.CalculateMD5(filename+"|"+urlStr+"|"+dh.SignKey) {
 		// 数据签名不匹配，返回错误信息
 		http.Error(w, "Invalid sign", http.StatusBadRequest)
 		return
@@ -95,8 +94,8 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var written int64
 	if parseUrl.Scheme == "file" {
-		filePath, _ := url.JoinPath(parseUrl.Host, parseUrl.Path)
-		written = dh.downloadFile(w, filePath, filename)
+		downPath, _ := url.QueryUnescape(parseUrl.RequestURI())
+		written = dh.downloadFile(w, downPath, filename)
 	} else {
 		written = dh.downloadUrl(w, r, urlStr, filename)
 	}
@@ -143,7 +142,7 @@ func (dh *DownloadHandler) downloadUrl(w http.ResponseWriter, r *http.Request, d
 	}
 
 	// 设置响应头
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", url.QueryEscape(filename)))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	contentLength := response.Header.Get("Content-Length")
 	if contentLength != "" {
@@ -165,8 +164,8 @@ func (dh *DownloadHandler) downloadFile(w http.ResponseWriter, downPath string, 
 		http.Error(w, "Invalid file path", http.StatusBadRequest)
 		return -1
 	}
-	// 构造文件的完整路径
-	filePath := filepath.Join(dh.Dir, downPath)
+	// 构造文件的完整路径，需要对传入path进行clean，防止路径穿越
+	filePath := filepath.Join(dh.Dir, filepath.Clean(downPath))
 	// 检查文件是否存在
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
@@ -191,7 +190,7 @@ func (dh *DownloadHandler) downloadFile(w http.ResponseWriter, downPath string, 
 	defer file.Close()
 
 	// 设置响应头
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", url.QueryEscape(filename)))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 
