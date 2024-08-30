@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"file-download-agent/common"
 	"fmt"
-	"github.com/mssola/useragent"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"file-download-agent/common"
+	"github.com/mssola/useragent"
 )
 
 type DownloadHandler struct {
