@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"file-download-agent/common"
 	"fmt"
+	"github.com/mssola/useragent"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,10 +11,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
-
-	"file-download-agent/common"
-	"github.com/mssola/useragent"
+	"time"
 )
 
 type DownloadHandler struct {
@@ -58,6 +59,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	urlStr := r.URL.Query().Get("url")
 	filename := r.URL.Query().Get("filename")
+	expire := r.URL.Query().Get("expire")
 	sign := r.URL.Query().Get("sign")
 
 	if urlStr == "" {
@@ -71,17 +73,9 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse url", http.StatusBadRequest)
 		return
 	}
-	// 校验url是否合法
-	if parseUrl.Scheme != "http" && parseUrl.Scheme != "https" && parseUrl.Scheme != "file" {
-		http.Error(w, "Invalid url", http.StatusBadRequest)
-		return
-	}
 
-	if dh.SignKey != "" && strings.ToLower(sign) != common.CalculateMD5(filename+"|"+urlStr+"|"+dh.SignKey) {
-		// 数据签名不匹配，返回错误信息
-		http.Error(w, "Invalid sign", http.StatusBadRequest)
-		return
-	}
+	// 需要签名校验的参数，为空的参数不校验
+	var needSignParams []string
 
 	if filename == "" {
 		// 如果没有指定下载文件名，直接从链接地址中获取
@@ -89,6 +83,41 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			filename = path.Base(parseUrl.Path)
 		} else {
 			filename = parseUrl.Hostname()
+		}
+	} else {
+		needSignParams = append(needSignParams, filename)
+	}
+
+	needSignParams = append(needSignParams, urlStr)
+	if expire != "" {
+		needSignParams = append(needSignParams, expire)
+	}
+	needSignParams = append(needSignParams, dh.SignKey)
+
+	if dh.SignKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
+		// 数据签名不匹配，返回错误信息
+		http.Error(w, "Invalid sign", http.StatusBadRequest)
+		return
+	}
+
+	// 校验url是否合法
+	if parseUrl.Scheme != "http" && parseUrl.Scheme != "https" && parseUrl.Scheme != "file" {
+		http.Error(w, "Invalid url", http.StatusBadRequest)
+		return
+	}
+
+	// 校验下载链接是否过期
+	if expire != "" {
+		timestamp, err := strconv.ParseInt(expire, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid expire parameter: must be a valid UNIX timestamp", http.StatusBadRequest)
+			return
+		}
+		expireTime := time.Unix(timestamp, 0)
+		currentTime := time.Now()
+		if currentTime.After(expireTime) {
+			http.Error(w, "Link has expired", http.StatusForbidden)
+			return
 		}
 	}
 

@@ -31,10 +31,13 @@ Author: Junlong Zhang <junlong.plus>
 Usage:
   Endpoint: /download
   Method: GET
-  Parameters: url (required), filename (optional), sign (optional)
+  Parameters:
+    - url (required): Supported url schemes: http, https, file (NOTE: relative path e.g. file:///path/to/file.txt)
+    - filename (optional): Saved file name
+    - expire (optional): Link expiration timestamp, seconds
+    - sign (optional): Checked signature if signature checking is enabled
   Remarks:
-    - sign = MD5(filename + "|" + url + "|" + signKey)
-    - supported url schemes: http, https, file (NOTICE: relative path e.g. file:///path/to/file.txt)`
+    - sign = MD5(filename + "|" + url + "|" + expire + "|" + signKey) (NOTE: Must exclude empty parameters)`
 
 // 程序入口执行函数
 func main() {

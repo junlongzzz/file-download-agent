@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -v -o fda
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -trimpath -o fda
 
 
 FROM alpine:latest

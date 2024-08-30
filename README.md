@@ -10,7 +10,11 @@ go build -o fda .
 
 ## Run
 
-### Command
+- Show usage
+
+```shell
+./fda -h
+```
 
 - Args
 
@@ -35,13 +39,13 @@ chmod +x fda
 task run
 ```
 
-### Docker
+## Docker
 
 ```shell
 docker run -d --name file-download-agent -p 18080:18080 -e FDA_PORT=18080 junlongzzz/file-download-agent
 ```
 
-### Docker Compose
+## Docker Compose
 
 ```yaml
 services:
@@ -52,6 +56,7 @@ services:
     ports:
       - 18080:18080
     volumes:
+      - ./files:/app/files
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
     environment:
