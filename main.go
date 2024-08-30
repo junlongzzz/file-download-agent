@@ -16,8 +16,8 @@ import (
 // 语义化的版本号 Semantic Versioning
 var (
 	versionX byte = 1
-	versionY byte = 0
-	versionZ byte = 2
+	versionY byte = 1
+	versionZ byte = 0
 )
 
 // 声明下载处理器
@@ -101,7 +101,7 @@ func server(host string, port int) {
 
 	// 启动HTTP服务器
 	addr := fmt.Sprintf("%s:%d", host, port)
-	slog.Info(fmt.Sprintf("Server is running on %s...", addr))
+	slog.Info(fmt.Sprintf("Server is running on http://%s", addr))
 	if err := http.ListenAndServe(addr, serveMux); err != nil {
 		slog.Error(fmt.Sprintf("Server error: %v", err))
 		os.Exit(1)
