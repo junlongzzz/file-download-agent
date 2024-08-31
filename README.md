@@ -6,6 +6,7 @@
 
 ```shell
 go build -o fda .
+chmod +x fda
 ```
 
 ## Run
@@ -19,7 +20,6 @@ go build -o fda .
 - Args
 
 ```shell
-chmod +x fda
 ./fda --host=127.0.0.1 --port=18080 --sign-key=<your_sign_key>
 ```
 
@@ -29,7 +29,14 @@ chmod +x fda
 export FDA_HOST=127.0.0.1
 export FDA_PORT=18080
 export FDA_SIGN_KEY=<your_sign_key>
-chmod +x fda
+./fda
+```
+
+- Proxy
+
+```shell
+export HTTP_PROXY=http://<your_proxy_host>:<your_proxy_port>
+export HTTPS_PROXY=http://<your_proxy_host>:<your_proxy_port>
 ./fda
 ```
 
