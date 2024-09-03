@@ -37,7 +37,7 @@ Usage:
     - expire (optional): Link expiration timestamp, seconds
     - sign (optional): Checked signature if signature checking is enabled
   Remarks:
-    - sign = MD5(filename + "|" + url + "|" + expire + "|" + signKey) (NOTE: Must exclude empty parameters)`
+    - sign = MD5(filename + "|" + url + "|" + expire + "|" + signKey) (NOTE: Must exclude empty parameters and DO NOT url-encode)`
 
 // 程序入口执行函数
 func main() {
