@@ -74,5 +74,7 @@ services:
 ## Usage
 
 ```text
-visit http://localhost:18080
+http://localhost:18080
+http://localhost:18080/download
+http://localhost:18080/webdav
 ```

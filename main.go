@@ -14,14 +14,16 @@ import (
 )
 
 // 语义化的版本号 Semantic Versioning
-var (
+const (
 	versionX byte = 1
 	versionY byte = 1
 	versionZ byte = 0
 )
 
-// 声明下载处理器
-var downloadHandler = handler.NewDownloadHandler()
+var (
+	downloadHandler *handler.DownloadHandler
+	webDavHandler   *handler.WebDavHandler
+)
 
 // 程序描述信息
 const description = `Name: File Download Agent
@@ -29,15 +31,22 @@ Description: File download agent server written in golang.
 Version: %s
 Author: Junlong Zhang <junlong.plus>
 Usage:
-  Endpoint: /download
-  Method: GET
-  Parameters:
-    - url (required): Supported url schemes: http, https, file (NOTE: relative path e.g. file:///path/to/file.txt)
-    - filename (optional): Saved file name
-    - expire (optional): Link expiration timestamp, seconds
-    - sign (optional): Checked signature if signature checking is enabled
-  Remarks:
-    - sign = MD5(filename + "|" + url + "|" + expire + "|" + signKey) (NOTE: Must exclude empty parameters and DO NOT url-encode)`
+  - Endpoint: /download
+    Method: GET
+    Parameters:
+      - url (required): Supported url schemes: http, https, file (NOTE: relative path e.g. file:///path/to/file.txt)
+      - filename (optional): Saved file name
+      - expire (optional): Link expiration timestamp, seconds
+      - sign (optional): Parameter signature if <signKey> is not empty
+    Remarks:
+      - sign = MD5(filename + "|" + url + "|" + expire + "|" + <your_sign_key>) (NOTE: Must exclude empty parameters and DO NOT url-encode)
+
+  - Endpoint: /webdav
+    Method: *
+    Basic-Auth:
+      - username: anonymous
+      - password: MD5(<your_sign_key>)
+    Remarks: Basic Auth is only valid if <signKey> is not empty`
 
 // 程序入口执行函数
 func main() {
@@ -61,23 +70,33 @@ func main() {
 	flag.Parse()
 
 	if signKey != "" {
-		downloadHandler.SignKey = signKey
-		slog.Info("Enable sign check")
+		slog.Info("Sign key has been set")
 	}
 
-	if dir != "" {
-		downloadHandler.Dir = dir
-	} else {
+	if dir == "" {
 		// 默认下载目录为当前程序执行目录
 		executable, err := os.Executable()
 		if err != nil {
 			slog.Error(fmt.Sprintf("Get executable path error: %v", err))
 			os.Exit(1)
 		} else {
-			downloadHandler.Dir = filepath.Join(filepath.Dir(executable), "files")
+			dir = filepath.Join(filepath.Dir(executable), "files")
 		}
 	}
-	slog.Info(fmt.Sprintf("Download directory: %s", downloadHandler.Dir))
+	// 判断文件夹是否存在，否则创建
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			slog.Error(fmt.Sprintf("Create directory error: %v", err))
+			os.Exit(1)
+		}
+	}
+	slog.Info(fmt.Sprintf("Download directory: %s", dir))
+
+	// 初始化handler
+	downloadHandler = handler.NewDownloadHandler(dir)
+	downloadHandler.SignKey = signKey
+	webDavHandler = handler.NewWebDavHandler(dir)
+	webDavHandler.SetBasicAuth("anonymous", signKey)
 
 	// 启动服务器
 	server(host, port)
@@ -96,8 +115,9 @@ func server(host string, port int) {
 	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, description, version())
 	})
-	// 注册文件下载路由
+	// 注册访问路由
 	serveMux.Handle("/download", downloadHandler)
+	serveMux.Handle("/webdav/", webDavHandler)
 
 	// 启动HTTP服务器
 	addr := fmt.Sprintf("%s:%d", host, port)

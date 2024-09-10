@@ -20,16 +20,17 @@ import (
 type DownloadHandler struct {
 	SignKey string       // 参数校验签名key
 	Client  *http.Client // 发起请求的http客户端
-	Dir     string       // 文件下载目录
 
-	ua *useragent.UserAgent // 解析user-agent的工具
+	dir string               // 文件下载目录
+	ua  *useragent.UserAgent // 解析user-agent的工具
 }
 
 // NewDownloadHandler 初始化并赋默认值
-func NewDownloadHandler() *DownloadHandler {
+func NewDownloadHandler(dir string) *DownloadHandler {
 	return &DownloadHandler{
 		SignKey: "",
 		Client:  defaultHTTPClient(),
+		dir:     dir,
 		ua:      &useragent.UserAgent{},
 	}
 }
@@ -195,7 +196,7 @@ func (dh *DownloadHandler) downloadFile(w http.ResponseWriter, downPath string, 
 		return -1
 	}
 	// 构造文件的完整路径，需要对传入path进行clean，防止路径穿越
-	filePath := filepath.Join(dh.Dir, filepath.Clean(downPath))
+	filePath := filepath.Join(dh.dir, filepath.Clean(downPath))
 	// 检查文件是否存在
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
