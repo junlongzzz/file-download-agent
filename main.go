@@ -16,7 +16,7 @@ import (
 // 语义化的版本号 Semantic Versioning
 const (
 	versionX byte = 1
-	versionY byte = 1
+	versionY byte = 2
 	versionZ byte = 0
 )
 
