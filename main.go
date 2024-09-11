@@ -37,7 +37,7 @@ Usage:
       - url (required): Supported url schemes: http, https, file (NOTE: relative path e.g. file:///path/to/file.txt)
       - filename (optional): Saved file name
       - expire (optional): Link expiration timestamp, seconds
-      - sign (optional): Parameter signature if <signKey> is not empty
+      - sign (optional): Parameter signature if <your_sign_key> is not empty
     Remarks:
       - sign = MD5(filename + "|" + url + "|" + expire + "|" + <your_sign_key>) (NOTE: Must exclude empty parameters and DO NOT url-encode)
 
@@ -46,7 +46,7 @@ Usage:
     Basic-Auth:
       - username: anonymous
       - password: MD5(<your_sign_key>)
-    Remarks: Basic Auth is only valid if <signKey> is not empty`
+    Remarks: Basic Auth is only valid if <your_sign_key> is not empty`
 
 // 程序入口执行函数
 func main() {

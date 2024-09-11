@@ -2,6 +2,12 @@
 
 **file download agent server written in golang.**
 
+## Features
+
+- [x] Download file from url
+- [x] Download file from local file
+- [x] Serve WebDAV server
+
 ## Compile
 
 ```shell
@@ -20,7 +26,7 @@ chmod +x fda
 - Args
 
 ```shell
-./fda --host=127.0.0.1 --port=18080 --sign-key=<your_sign_key>
+./fda --host=127.0.0.1 --port=18080 --sign-key=<your_sign_key> --dir=./files
 ```
 
 - Env
@@ -29,6 +35,7 @@ chmod +x fda
 export FDA_HOST=127.0.0.1
 export FDA_PORT=18080
 export FDA_SIGN_KEY=<your_sign_key>
+export FDA_DIR=./files
 ./fda
 ```
 
