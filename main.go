@@ -84,11 +84,17 @@ func main() {
 		}
 	}
 	// 判断文件夹是否存在，否则创建
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		slog.Info(fmt.Sprintf("Directory %s does not exist, creating...", dir))
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			slog.Error(fmt.Sprintf("Create directory error: %v", err))
 			os.Exit(1)
 		}
+	} else if !info.IsDir() {
+		// 存在但是不为文件夹
+		slog.Error(fmt.Sprintf("Path %s is not a directory", dir))
+		os.Exit(1)
 	}
 	slog.Info(fmt.Sprintf("Download directory: %s", dir))
 
@@ -121,9 +127,9 @@ func server(host string, port int) {
 
 	// 启动HTTP服务器
 	addr := fmt.Sprintf("%s:%d", host, port)
-	slog.Info(fmt.Sprintf("Server is running on http://%s", addr))
+	slog.Info(fmt.Sprintf("Server is running on %s", addr))
 	if err := http.ListenAndServe(addr, serveMux); err != nil {
-		slog.Error(fmt.Sprintf("Server error: %v", err))
+		slog.Error(fmt.Sprintf("Server start error: %v", err))
 		os.Exit(1)
 	}
 }
