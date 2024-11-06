@@ -10,6 +10,9 @@ import (
 
 // CalculateMD5 计算传入字符串的MD5值，返回小写的MD5值
 func CalculateMD5(input string) string {
+	if input == "" {
+		return ""
+	}
 	// 创建 MD5 散列
 	hash := md5.New()
 	// 将字符串转换为字节数组并写入散列

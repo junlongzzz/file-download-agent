@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 
-	"file-download-agent/common"
 	"golang.org/x/net/webdav"
 )
 
@@ -15,22 +14,22 @@ type WebDavHandler struct {
 }
 
 // NewWebDavHandler 创建Handler
-func NewWebDavHandler(dir string) *WebDavHandler {
+func NewWebDavHandler(dir, username, password string) *WebDavHandler {
 	return &WebDavHandler{
 		handler: &webdav.Handler{
 			Prefix:     "/webdav",
 			FileSystem: webdav.Dir(dir),
 			LockSystem: webdav.NewMemLS(),
 		},
+		username: username,
+		password: password,
 	}
 }
 
 // SetBasicAuth 设置basic认证信息
 func (wh *WebDavHandler) SetBasicAuth(username, password string) {
 	wh.username = username
-	if password != "" {
-		wh.password = common.CalculateMD5(password)
-	}
+	wh.password = password
 }
 
 func (wh *WebDavHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

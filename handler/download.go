@@ -18,18 +18,17 @@ import (
 )
 
 type DownloadHandler struct {
-	SignKey string       // 参数校验签名key
-	Client  *http.Client // 发起请求的http客户端
-
-	dir string               // 文件下载目录
-	ua  *useragent.UserAgent // 解析user-agent的工具
+	signKey string               // 参数校验签名key
+	client  *http.Client         // 发起请求的http客户端
+	dir     string               // 文件下载目录
+	ua      *useragent.UserAgent // 解析user-agent的工具
 }
 
 // NewDownloadHandler 初始化并赋默认值
-func NewDownloadHandler(dir string) *DownloadHandler {
+func NewDownloadHandler(dir, signKey string) *DownloadHandler {
 	return &DownloadHandler{
-		SignKey: "",
-		Client:  defaultHTTPClient(),
+		signKey: signKey,
+		client:  defaultHTTPClient(),
 		dir:     dir,
 		ua:      &useragent.UserAgent{},
 	}
@@ -48,6 +47,13 @@ func defaultHTTPClient() *http.Client {
 			}
 			return nil
 		},
+	}
+}
+
+// SetClient 设置HttpClient
+func (dh *DownloadHandler) SetClient(client *http.Client) {
+	if client != nil {
+		dh.client = client
 	}
 }
 
@@ -94,9 +100,9 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if expire != "" {
 		needSignParams = append(needSignParams, expire)
 	}
-	needSignParams = append(needSignParams, dh.SignKey)
+	needSignParams = append(needSignParams, dh.signKey)
 
-	if dh.SignKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
+	if dh.signKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
 		// 数据签名不匹配，返回错误信息
 		http.Error(w, "Invalid sign", http.StatusBadRequest)
 		return
@@ -155,7 +161,7 @@ func (dh *DownloadHandler) downloadUrl(w http.ResponseWriter, r *http.Request, d
 	// 设置请求头
 	request.Header.Set("User-Agent", r.Header.Get("User-Agent"))
 	// 发送 HTTP 请求
-	response, err := dh.Client.Do(request)
+	response, err := dh.client.Do(request)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to send request: %v", err), http.StatusInternalServerError)
 		return -1

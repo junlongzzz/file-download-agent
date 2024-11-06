@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -9,65 +10,69 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
+	"file-download-agent/common"
 	"file-download-agent/handler"
-)
-
-// 语义化的版本号 Semantic Versioning
-const (
-	versionX byte = 1
-	versionY byte = 2
-	versionZ byte = 0
 )
 
 var (
 	downloadHandler *handler.DownloadHandler
 	webDavHandler   *handler.WebDavHandler
+	staticHandler   *handler.StaticHandler
+
+	//go:embed static/*
+	static embed.FS
 )
-
-// 程序描述信息
-const description = `Name: File Download Agent
-Description: File download agent server written in golang.
-Version: %s
-Author: Junlong Zhang <junlong.plus>
-Usage:
-  - Endpoint: /download
-    Method: GET
-    Parameters:
-      - url (required): Supported url schemes: http, https, file (NOTE: relative path e.g. file:///path/to/file.txt)
-      - filename (optional): Saved file name
-      - expire (optional): Link expiration timestamp, seconds
-      - sign (optional): Parameter signature if <your_sign_key> is not empty
-    Remarks:
-      - sign = MD5(filename + "|" + url + "|" + expire + "|" + <your_sign_key>) (NOTE: Must exclude empty parameters and DO NOT url-encode)
-
-  - Endpoint: /webdav
-    Method: *
-    Basic-Auth:
-      - username: anonymous
-      - password: MD5(<your_sign_key>)
-    Remarks: Basic Auth is only valid if <your_sign_key> is not empty`
 
 // 程序入口执行函数
 func main() {
-	// 设置日志输出级别
-	slog.SetLogLoggerLevel(slog.LevelInfo)
-
-	slog.Info(fmt.Sprintf("File Download Agent %s (%s %s/%s)", version(), runtime.Version(), runtime.GOOS, runtime.GOARCH))
+	versionInfo := fmt.Sprintf("File Download Agent v%s (%s %s/%s)", common.Version(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 
 	// 从环境变量内读取运行参数
 	host := os.Getenv("FDA_HOST")
 	port, _ := strconv.Atoi(os.Getenv("FDA_PORT"))
 	signKey := os.Getenv("FDA_SIGN_KEY")
 	dir := os.Getenv("FDA_DIR")
+	logLevel := os.Getenv("FDA_LOG_LEVEL")
 	// 从运行参数中获取运行参数
 	// 会覆盖环境变量的值，如果不存在默认就使用环境变量内的值
 	flag.StringVar(&host, "host", host, "server host")
 	flag.IntVar(&port, "port", port, "server port")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
 	flag.StringVar(&dir, "dir", dir, "download directory, default ./files")
+	flag.StringVar(&logLevel, "log-level", logLevel, "log level: debug, info, warn, error")
+	var version bool
+	flag.BoolVar(&version, "version", false, "show version")
 	// 解析命令行参数
 	flag.Parse()
+
+	if version {
+		fmt.Println(versionInfo)
+		os.Exit(0)
+	}
+
+	// 设置日志输出级别
+	var slogLevel slog.Level
+	switch strings.ToLower(logLevel) {
+	case "debug":
+		slogLevel = slog.LevelDebug
+		break
+	case "info":
+		slogLevel = slog.LevelInfo
+		break
+	case "warn":
+		slogLevel = slog.LevelWarn
+		break
+	case "error":
+		slogLevel = slog.LevelError
+		break
+	default:
+		slogLevel = slog.LevelInfo
+	}
+	slog.SetLogLoggerLevel(slogLevel)
+
+	slog.Info(versionInfo)
 
 	if signKey != "" {
 		slog.Info("Sign key has been set")
@@ -99,10 +104,9 @@ func main() {
 	slog.Info(fmt.Sprintf("Download directory: %s", dir))
 
 	// 初始化handler
-	downloadHandler = handler.NewDownloadHandler(dir)
-	downloadHandler.SignKey = signKey
-	webDavHandler = handler.NewWebDavHandler(dir)
-	webDavHandler.SetBasicAuth("anonymous", signKey)
+	downloadHandler = handler.NewDownloadHandler(dir, signKey)
+	webDavHandler = handler.NewWebDavHandler(dir, "anonymous", common.CalculateMD5(signKey))
+	staticHandler = handler.NewStaticHandler(static)
 
 	// 启动服务器
 	server(host, port)
@@ -118,9 +122,7 @@ func server(host string, port int) {
 	// 创建路由器
 	serveMux := http.NewServeMux()
 	// 注册默认根路径路由
-	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintf(w, description, version())
-	})
+	serveMux.Handle("/", staticHandler)
 	// 注册访问路由
 	serveMux.Handle("/download", downloadHandler)
 	serveMux.Handle("/webdav/", webDavHandler)
@@ -132,9 +134,4 @@ func server(host string, port int) {
 		slog.Error(fmt.Sprintf("Server start error: %v", err))
 		os.Exit(1)
 	}
-}
-
-// 获取 x.y.z 文本格式版本号
-func version() string {
-	return fmt.Sprintf("%v.%v.%v", versionX, versionY, versionZ)
 }
