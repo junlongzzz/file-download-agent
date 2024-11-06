@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件下载代理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .section h2 {
+            color: #333;
+        }
+
+        .section p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            background-color: #2980b9;
+        }
+
+        .github-link {
+            display: inline-block;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-top: 20px;
+        }
+
+        .github-link:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<h1>文件下载代理</h1>
+
+<div class="section">
+    <h2>下载文件</h2>
+    <p>
+        使用此功能可以通过服务器中转下载指定的链接地址或服务器储存文件。您可以选择设置下载文件名、设置链接过期时间、以及添加签名保证安全。
+    </p>
+    <a href="generate_link.html" class="btn">生成下载链接</a>
+</div>
+
+<div class="section">
+    <h2>WebDAV 文件访问</h2>
+    <p>通过 WebDAV，您可以访问和管理文件。支持 HTTP 基本认证。只有在配置了 sign_key 时，基本认证才会生效。</p>
+    <p>访问地址: <strong>/webdav/</strong></p>
+    <p>认证用户名: <strong>anonymous</strong></p>
+    <p>认证密码: <strong>MD5(&lt;your_sign_key&gt;) [小写]</strong></p>
+</div>
+
+<div class="section">
+    <a href="https://github.com/junlongzzz/file-download-agent" class="github-link" target="_blank">访问 GitHub 仓库</a>
+</div>
+
+</body>
+</html>

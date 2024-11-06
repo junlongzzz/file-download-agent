@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成文件下载链接</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .section h2 {
+            color: #333;
+        }
+
+        .section p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        input[type="text"], input[type="datetime-local"], input[type="number"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .output {
+            margin-top: 20px;
+            background-color: #e9f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #d3e6d3;
+        }
+
+        .back-btn {
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .copy-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        .copy-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .copy-btn.hidden {
+            display: none;
+        }
+
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .param-table th, .param-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .param-table th {
+            background-color: #f2f2f2;
+        }
+
+        /* Add styles for long link wrapping */
+        #downloadLink {
+            word-wrap: break-word; /* Break the word if it's too long */
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            word-break: break-word; /* Allow the word to break when needed */
+            display: block;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+
+<h1>生成文件下载链接</h1>
+
+<div class="section">
+    <h2>填写参数</h2>
+    <label for="url">下载 URL（必填）:</label>
+    <input type="text" id="url" placeholder="输入文件的 URL (例如: http://example.com/file.zip)" required>
+
+    <label for="filename">文件名（可选）:</label>
+    <input type="text" id="filename" placeholder="输入文件名（可选）">
+
+    <label for="expire">过期时间（可选）:</label>
+    <input type="datetime-local" id="expire" step="1">
+
+    <label for="signKey">签名密钥（可选）:</label>
+    <input type="text" id="signKey" placeholder="输入签名密钥（可选）">
+
+    <button onclick="generateLink()">生成下载链接</button>
+</div>
+
+<div class="section output" id="output" style="display:none;">
+    <h2>生成的下载链接：</h2>
+    <pre><a id="downloadLink" href="#" target="_blank"></a></pre>
+    <button class="copy-btn" id="copyBtn" onclick="copyLink()">复制链接</button>
+</div>
+
+<div class="section">
+    <h2>参数介绍</h2>
+    <h3>/download</h3>
+    <p>通过此接口，您可以进行文件下载。以下是可用的参数：</p>
+    <table class="param-table">
+        <tr>
+            <th>参数</th>
+            <th>类型</th>
+            <th>描述</th>
+            <th>必填</th>
+        </tr>
+        <tr>
+            <td>url</td>
+            <td>string</td>
+            <td>文件 URL，支持 http, https, file 协议。file 协议示例：file:///path/to/file.zip</td>
+            <td>是</td>
+        </tr>
+        <tr>
+            <td>filename</td>
+            <td>string</td>
+            <td>下载保存的文件名。</td>
+            <td>否</td>
+        </tr>
+        <tr>
+            <td>expire</td>
+            <td>int</td>
+            <td>链接过期时间（单位：秒，Unix 时间戳）。</td>
+            <td>否</td>
+        </tr>
+        <tr>
+            <td>sign</td>
+            <td>string</td>
+            <td>签名参数，用于验证请求。仅在 &lt;your_sign_key&gt; 不为空时有效。</td>
+            <td>否</td>
+        </tr>
+    </table>
+    <p><b>签名计算方式：</b><br>
+        sign = MD5(filename + "|" + url + "|" + expire + "|" + &lt;your_sign_key&gt;)<br>
+        注意：空参数需排除，并且不要对进行签名的参数进行 URL 编码。</p>
+</div>
+
+<div class="section">
+    <a href="index.html" class="back-btn">返回主页</a>
+</div>
+
+<script>
+    function setMinExpirationTime() {
+        const now = new Date();
+        const nowISOString = now.toISOString().slice(0, 16);
+        document.getElementById('expire').setAttribute('min', nowISOString);
+    }
+
+    setMinExpirationTime();
+
+    function generateLink() {
+        const url = document.getElementById('url').value;
+        const filename = document.getElementById('filename').value;
+        const expire = document.getElementById('expire').value;
+        const signKey = document.getElementById('signKey').value;
+
+        if (!url) {
+            alert("URL是必填的！");
+            return;
+        }
+
+        let expireTimestamp = null;
+        if (expire) {
+            const currentTime = new Date().getTime();
+            const expireTime = new Date(expire).getTime();
+            if (expireTime < currentTime) {
+                alert("过期时间不能早于当前时间。");
+                return;
+            }
+            expireTimestamp = Math.floor(expireTime / 1000);
+        }
+
+        let signature = "";
+        if (signKey) {
+            let signString = '';
+            if (filename) signString += filename + '|';
+            signString += url + '|';
+            if (expireTimestamp) signString += expireTimestamp + '|';
+            signString += signKey;
+            signature = generateMD5(signString);
+        }
+
+        const siteOrigin = window.location.origin;
+        let downloadLink = `${siteOrigin}/download?url=${encodeURIComponent(url)}`;
+        if (filename) {
+            downloadLink += `&filename=${encodeURIComponent(filename)}`;
+        }
+        if (expireTimestamp) {
+            downloadLink += `&expire=${expireTimestamp}`;
+        }
+        if (signature) {
+            downloadLink += `&sign=${signature}`;
+        }
+
+        const linkElement = document.getElementById('downloadLink');
+        linkElement.textContent = downloadLink;
+        linkElement.href = downloadLink;
+        document.getElementById('output').style.display = 'block';
+
+        if (navigator.clipboard) {
+            document.getElementById('copyBtn').classList.remove('hidden');
+        } else {
+            document.getElementById('copyBtn').classList.add('hidden');
+        }
+    }
+
+    function generateMD5(string) {
+        return CryptoJS.MD5(string).toString(CryptoJS.enc.Hex);
+    }
+
+    function copyLink() {
+        const copyText = document.getElementById('downloadLink').textContent;
+
+        navigator.clipboard.writeText(copyText).then(function () {
+            alert("链接已复制到剪贴板！");
+        }).catch(function (error) {
+            alert("复制链接失败: " + error);
+        });
+    }
+</script>
+
+</body>
+</html>

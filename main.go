@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"file-download-agent/common"
 	"file-download-agent/handler"
@@ -110,6 +112,12 @@ func main() {
 
 	// 启动服务器
 	server(host, port)
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+	signalReceived := <-signalChan
+	slog.Info(fmt.Sprintf("Server stopped (signal: %v)", signalReceived))
+	os.Exit(0)
 }
 
 // 启动HTTP服务器
@@ -127,11 +135,13 @@ func server(host string, port int) {
 	serveMux.Handle("/download", downloadHandler)
 	serveMux.Handle("/webdav/", webDavHandler)
 
-	// 启动HTTP服务器
-	addr := fmt.Sprintf("%s:%d", host, port)
-	slog.Info(fmt.Sprintf("Server is running on %s", addr))
-	if err := http.ListenAndServe(addr, serveMux); err != nil {
-		slog.Error(fmt.Sprintf("Server start error: %v", err))
-		os.Exit(1)
-	}
+	go func() {
+		// 启动HTTP服务器 异步
+		addr := fmt.Sprintf("%s:%d", host, port)
+		slog.Info(fmt.Sprintf("Server is running on %s", addr))
+		if err := http.ListenAndServe(addr, serveMux); err != nil {
+			slog.Error(fmt.Sprintf("Server start error: %v", err))
+			os.Exit(1)
+		}
+	}()
 }
