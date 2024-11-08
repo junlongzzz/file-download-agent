@@ -8,12 +8,29 @@
 - [x] Download file from local file
 - [x] Serve WebDAV server
 
-## Compile
+## Build
 
 ```shell
 go build -o fda .
 chmod +x fda
 ```
+
+## Args and Env
+
+| Argument     | Env             | Description                         | Default       |
+|--------------|-----------------|-------------------------------------|---------------|
+| -host        | FDA_HOST        | Server host                         | 0.0.0.0       |
+| -port        | FDA_PORT        | Server port                         | 18080         |
+| -sign-key    | FDA_SIGN_KEY    | Sign key for server                 | -             |
+| -dir         | FDA_DIR         | Download file dir                   | ./files       |
+| -webdav-dir  | FDA_WEBDAV_DIR  | WebDAV root dir                     | same as dir   |
+| -webdav-user | FDA_WEBDAV_USER | WebDAV username                     | anonymous     |
+| -webdav-pass | FDA_WEBDAV_PASS | WebDAV password                     | md5(sign_key) |
+| -log-level   | FDA_LOG_LEVEL   | Log level: debug, info, warn, error | info          |
+| -help, -h    | -               | Show help                           | -             |
+| -version     | -               | Show version                        | -             |
+
+> args has higher priority than env
 
 ## Run
 
@@ -26,7 +43,7 @@ chmod +x fda
 - Args
 
 ```shell
-./fda --host=127.0.0.1 --port=18080 --sign-key=<your_sign_key> --dir=./files
+./fda -host=127.0.0.1 -port=18080 -sign-key=<your_sign_key> -dir=./files
 ```
 
 - Env
@@ -71,11 +88,9 @@ services:
       - 18080:18080
     volumes:
       - ./files:/app/files
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
     environment:
       - FDA_PORT=18080
-      - FDA_SIGN_KEY=<your-sign-key>
+      - FDA_SIGN_KEY=<your_sign_key>
 ```
 
 ## Usage
@@ -83,5 +98,5 @@ services:
 ```text
 http://localhost:18080
 http://localhost:18080/download
-http://localhost:18080/webdav
+http://localhost:18080/webdav/
 ```

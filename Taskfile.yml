@@ -14,4 +14,4 @@ tasks:
     deps:
       - build
     cmds:
-      - ./out/fda.exe --host=127.0.0.1 --port=18080
+      - ./out/fda.exe -host=127.0.0.1 -port=18080
