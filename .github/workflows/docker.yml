@@ -6,6 +6,11 @@ on:
     tags:
       - 'v*.*.*'
 
+# 避免并发构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-image:
     runs-on: ubuntu-latest
