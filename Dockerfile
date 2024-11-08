@@ -11,6 +11,8 @@ FROM alpine:latest
 
 LABEL maintainer="Junlong Zhang <hi@junlong.plus>"
 
+ENV TZ=Asia/Shanghai
+
 WORKDIR /app
 
 COPY --from=builder /app/fda .
