@@ -16,6 +16,8 @@ import (
 
 	"file-download-agent/common"
 	"file-download-agent/handler"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 var (
@@ -149,8 +151,13 @@ func server(host string, port int) {
 	go func() {
 		// 启动HTTP服务器 异步
 		addr := fmt.Sprintf("%s:%d", host, port)
+		// 支持 h2c 的服务器，兼容 http/1.1
+		httpServer := &http.Server{
+			Addr:    addr,
+			Handler: h2c.NewHandler(serveMux, &http2.Server{}),
+		}
 		slog.Info(fmt.Sprintf("Server is running on %s", addr))
-		if err := http.ListenAndServe(addr, serveMux); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil {
 			slog.Error(fmt.Sprintf("Server start error: %v", err))
 			os.Exit(1)
 		}
