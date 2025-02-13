@@ -1,10 +1,10 @@
-module file-download-agent
+module github.com/junlongzzz/file-download-agent
 
-go 1.23
+go 1.24
 
 require (
 	github.com/mssola/useragent v1.0.0
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.35.0
 )
 
-require golang.org/x/text v0.21.0 // indirect
+require golang.org/x/text v0.22.0 // indirect

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"file-download-agent/common"
+	"github.com/junlongzzz/file-download-agent/common"
 	"github.com/mssola/useragent"
 )
 

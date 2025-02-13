@@ -14,8 +14,8 @@ import (
 	"strings"
 	"syscall"
 
-	"file-download-agent/common"
-	"file-download-agent/handler"
+	"github.com/junlongzzz/file-download-agent/common"
+	"github.com/junlongzzz/file-download-agent/handler"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
