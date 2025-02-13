@@ -6,7 +6,7 @@ import "fmt"
 const (
 	versionX byte = 1
 	versionY byte = 3
-	versionZ byte = 3
+	versionZ byte = 4
 )
 
 // Version 获取 x.y.z 文本格式版本号
