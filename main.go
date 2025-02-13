@@ -42,6 +42,8 @@ func main() {
 	webDavDir := os.Getenv("FDA_WEBDAV_DIR")
 	webDavUser := os.Getenv("FDA_WEBDAV_USER")
 	webDavPass := os.Getenv("FDA_WEBDAV_PASS")
+	certFile := os.Getenv("FDA_CERT_FILE")
+	certKeyFile := os.Getenv("FDA_CERT_KEY_FILE")
 	// 从运行参数中获取运行参数
 	// 会覆盖环境变量的值，如果不存在默认就使用环境变量内的值
 	flag.StringVar(&host, "host", host, "server host")
@@ -52,6 +54,8 @@ func main() {
 	flag.StringVar(&webDavUser, "webdav-user", webDavUser, "webdav username, default anonymous")
 	flag.StringVar(&webDavPass, "webdav-pass", webDavPass, "webdav password, default md5(sign_key)")
 	flag.StringVar(&logLevel, "log-level", logLevel, "log level: debug, info, warn, error")
+	flag.StringVar(&certFile, "cert-file", certFile, "cert file path")
+	flag.StringVar(&certKeyFile, "cert-key-file", certKeyFile, "cert key file path")
 	var version bool
 	flag.BoolVar(&version, "version", false, "show version")
 	// 解析命令行参数
@@ -124,7 +128,7 @@ func main() {
 	staticHandler = handler.NewStaticHandler(static)
 
 	// 启动服务器
-	server(host, port)
+	server(host, port, certFile, certKeyFile)
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
@@ -134,7 +138,7 @@ func main() {
 }
 
 // 启动HTTP服务器
-func server(host string, port int) {
+func server(host string, port int, certFile, keyFile string) {
 	if port <= 0 || port >= 65535 {
 		// 不合法端口号，重置为默认端口
 		port = 18080
@@ -150,14 +154,23 @@ func server(host string, port int) {
 
 	go func() {
 		// 启动HTTP服务器 异步
-		addr := fmt.Sprintf("%s:%d", host, port)
-		// 支持 h2c 的服务器，兼容 http/1.1
+		// 创建服务器
 		httpServer := &http.Server{
-			Addr:    addr,
-			Handler: h2c.NewHandler(serveMux, &http2.Server{}),
+			Addr: fmt.Sprintf("%s:%d", host, port),
 		}
-		slog.Info(fmt.Sprintf("Server is running on %s", addr))
-		if err := httpServer.ListenAndServe(); err != nil {
+		var err error
+		if certFile != "" && keyFile != "" {
+			// 支持 https 的服务器
+			httpServer.Handler = serveMux
+			slog.Info(fmt.Sprintf("Server is running on %s with HTTPS", httpServer.Addr))
+			err = httpServer.ListenAndServeTLS(certFile, keyFile)
+		} else {
+			// 支持 h2c 的服务器，兼容 http/1.1
+			httpServer.Handler = h2c.NewHandler(serveMux, &http2.Server{})
+			slog.Info(fmt.Sprintf("Server is running on %s", httpServer.Addr))
+			err = httpServer.ListenAndServe()
+		}
+		if err != nil {
 			slog.Error(fmt.Sprintf("Server start error: %v", err))
 			os.Exit(1)
 		}

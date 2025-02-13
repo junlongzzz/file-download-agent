@@ -17,18 +17,20 @@ chmod +x fda
 
 ## Args and Env
 
-| Argument     | Env             | Description                         | Default       |
-|--------------|-----------------|-------------------------------------|---------------|
-| -host        | FDA_HOST        | Server host                         | 0.0.0.0       |
-| -port        | FDA_PORT        | Server port                         | 18080         |
-| -sign-key    | FDA_SIGN_KEY    | Sign key for server                 | -             |
-| -dir         | FDA_DIR         | Download file dir                   | ./files       |
-| -webdav-dir  | FDA_WEBDAV_DIR  | WebDAV root dir                     | same as dir   |
-| -webdav-user | FDA_WEBDAV_USER | WebDAV username                     | anonymous     |
-| -webdav-pass | FDA_WEBDAV_PASS | WebDAV password                     | md5(sign_key) |
-| -log-level   | FDA_LOG_LEVEL   | Log level: debug, info, warn, error | info          |
-| -help, -h    | -               | Show help                           | -             |
-| -version     | -               | Show version                        | -             |
+| Argument       | Env               | Description                         | Default       |
+|----------------|-------------------|-------------------------------------|---------------|
+| -host          | FDA_HOST          | Server host                         | 0.0.0.0       |
+| -port          | FDA_PORT          | Server port                         | 18080         |
+| -sign-key      | FDA_SIGN_KEY      | Sign key for server                 | -             |
+| -dir           | FDA_DIR           | Download file dir                   | ./files       |
+| -webdav-dir    | FDA_WEBDAV_DIR    | WebDAV root dir                     | same as dir   |
+| -webdav-user   | FDA_WEBDAV_USER   | WebDAV username                     | anonymous     |
+| -webdav-pass   | FDA_WEBDAV_PASS   | WebDAV password                     | md5(sign_key) |
+| -log-level     | FDA_LOG_LEVEL     | Log level: debug, info, warn, error | info          |
+| -cert-file     | FDA_CERT_FILE     | SSL cert file path                  | -             |
+| -cert-key-file | FDA_CERT_KEY_FILE | SSL cert key file path              | -             |
+| -help, -h      | -                 | Show help                           | -             |
+| -version       | -                 | Show version                        | -             |
 
 > args has higher priority than env
 
