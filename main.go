@@ -16,8 +16,6 @@ import (
 
 	"github.com/junlongzzz/file-download-agent/common"
 	"github.com/junlongzzz/file-download-agent/handler"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 var (
@@ -155,18 +153,22 @@ func server(host string, port int, certFile, keyFile string) {
 	go func() {
 		// 启动HTTP服务器 异步
 		// 创建服务器
+		// 支持 h2c 的服务器，兼容 http/1.1
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		protocols.SetUnencryptedHTTP2(true)
 		httpServer := &http.Server{
-			Addr: fmt.Sprintf("%s:%d", host, port),
+			Addr:      fmt.Sprintf("%s:%d", host, port),
+			Handler:   serveMux,
+			Protocols: protocols,
 		}
 		var err error
 		if certFile != "" && keyFile != "" {
 			// 支持 https 的服务器
-			httpServer.Handler = serveMux
 			slog.Info(fmt.Sprintf("Server is running on %s with HTTPS", httpServer.Addr))
 			err = httpServer.ListenAndServeTLS(certFile, keyFile)
 		} else {
-			// 支持 h2c 的服务器，兼容 http/1.1
-			httpServer.Handler = h2c.NewHandler(serveMux, &http2.Server{})
 			slog.Info(fmt.Sprintf("Server is running on %s", httpServer.Addr))
 			err = httpServer.ListenAndServe()
 		}

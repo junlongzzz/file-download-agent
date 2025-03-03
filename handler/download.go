@@ -37,9 +37,6 @@ func NewDownloadHandler(dir, signKey string) *DownloadHandler {
 // 默认的请求发起http客户端
 func defaultHTTPClient() *http.Client {
 	return &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment, // 从环境变量中读取代理设置
-		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// 设置最大重定向次数
 			if len(via) >= 20 {
