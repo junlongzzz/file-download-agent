@@ -37,6 +37,12 @@ func main() {
 	signKey := os.Getenv("FDA_SIGN_KEY")
 	dir := os.Getenv("FDA_DIR")
 	logLevel := os.Getenv("FDA_LOG_LEVEL")
+	webDavEnableEnv := os.Getenv("FDA_WEBDAV_ENABLE")
+	// 默认启用webdav
+	webDavEnable := true
+	if webDavEnableEnv != "" {
+		webDavEnable, _ = strconv.ParseBool(webDavEnableEnv)
+	}
 	webDavDir := os.Getenv("FDA_WEBDAV_DIR")
 	webDavUser := os.Getenv("FDA_WEBDAV_USER")
 	webDavPass := os.Getenv("FDA_WEBDAV_PASS")
@@ -48,6 +54,7 @@ func main() {
 	flag.IntVar(&port, "port", port, "server port")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
 	flag.StringVar(&dir, "dir", dir, "download directory, default ./files")
+	flag.BoolVar(&webDavEnable, "webdav-enable", webDavEnable, "enable webdav server or not")
 	flag.StringVar(&webDavDir, "webdav-dir", webDavDir, "webdav root directory, default use <dir>")
 	flag.StringVar(&webDavUser, "webdav-user", webDavUser, "webdav username, default anonymous")
 	flag.StringVar(&webDavPass, "webdav-pass", webDavPass, "webdav password, default md5(sign_key)")
@@ -106,23 +113,30 @@ func main() {
 	}
 	slog.Info(fmt.Sprintf("Download directory: %s", dir))
 
-	if webDavDir == "" {
-		// 未设置webdav目录，使用下载目录
-		webDavDir = dir
-	}
-	slog.Info(fmt.Sprintf("WebDAV directory: %s", webDavDir))
-	if webDavUser == "" {
-		// 未设置webdav用户名，使用匿名用户
-		webDavUser = "anonymous"
-	}
-	if webDavPass == "" && signKey != "" {
-		// 未设置webdav密码，使用sign_key的md5值
-		webDavPass = common.CalculateMD5(signKey)
+	if webDavEnable {
+		slog.Info("WebDAV is enabled")
+		if webDavDir == "" {
+			// 未设置webdav目录，使用下载目录
+			webDavDir = dir
+		}
+		slog.Info(fmt.Sprintf("WebDAV directory: %s", webDavDir))
+		if webDavUser == "" {
+			// 未设置webdav用户名，使用匿名用户
+			webDavUser = "anonymous"
+		}
+		if webDavPass == "" && signKey != "" {
+			// 未设置webdav密码，使用sign_key的md5值
+			webDavPass = common.CalculateMD5(signKey)
+		}
+		// 初始化 webdav handler
+		webDavHandler = handler.NewWebDavHandler(webDavDir, webDavUser, webDavPass)
+	} else {
+		slog.Info("WebDAV is disabled")
+		webDavHandler = nil
 	}
 
 	// 初始化handler
 	downloadHandler = handler.NewDownloadHandler(dir, signKey)
-	webDavHandler = handler.NewWebDavHandler(webDavDir, webDavUser, webDavPass)
 	staticHandler = handler.NewStaticHandler(static)
 
 	// 启动服务器
@@ -148,7 +162,9 @@ func server(host string, port int, certFile, keyFile string) {
 	serveMux.Handle("/", staticHandler)
 	// 注册访问路由
 	serveMux.Handle("/download", downloadHandler)
-	serveMux.Handle("/webdav/", webDavHandler)
+	if webDavHandler != nil {
+		serveMux.Handle("/webdav/", webDavHandler)
+	}
 
 	go func() {
 		// 启动HTTP服务器 异步

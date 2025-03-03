@@ -23,6 +23,7 @@ chmod +x fda
 | -port          | FDA_PORT          | Server port                         | 18080         |
 | -sign-key      | FDA_SIGN_KEY      | Sign key for server                 | -             |
 | -dir           | FDA_DIR           | Download file dir                   | ./files       |
+| -webdav-enable | FDA_WEBDAV_ENABLE | Enable WebDAV server or not         | true          |
 | -webdav-dir    | FDA_WEBDAV_DIR    | WebDAV root dir                     | same as dir   |
 | -webdav-user   | FDA_WEBDAV_USER   | WebDAV username                     | anonymous     |
 | -webdav-pass   | FDA_WEBDAV_PASS   | WebDAV password                     | md5(sign_key) |
