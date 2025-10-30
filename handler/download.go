@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,6 +24,13 @@ type DownloadHandler struct {
 	client  *http.Client         // 发起请求的http客户端
 	dir     string               // 文件下载目录
 	ua      *useragent.UserAgent // 解析user-agent的工具
+}
+
+type DownloadParams struct {
+	Url      string `json:"url"`                // 下载链接
+	Filename string `json:"filename,omitempty"` // 下载保存文件名
+	Expire   string `json:"expire,omitempty"`   // 下载链接有效期 截止时间的时间戳，单位：秒
+	Sign     string `json:"sign,omitempty"`     // 参数签名 omitempty:如果为空值时在json序列化时会被忽略输出
 }
 
 // NewDownloadHandler 初始化并赋默认值
@@ -56,8 +65,37 @@ func (dh *DownloadHandler) SetClient(client *http.Client) {
 
 // 文件下载处理函数，实现了 Handler 接口
 func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 只接受get方式请求
-	if r.Method != http.MethodGet {
+	if r.Method == http.MethodPost {
+		// POST请求用于处理数据
+		// 获取请求体参数
+		body := &DownloadParams{}
+		if err := json.NewDecoder(r.Body).Decode(body); err != nil {
+			_ = dh.jsonResponse(w, http.StatusBadRequest, "Invalid request body", nil)
+			return
+		}
+		defer r.Body.Close()
+
+		if body.Url == "" {
+			_ = dh.jsonResponse(w, http.StatusBadRequest, "Missing required parameter: url", nil)
+			return
+		}
+
+		signKey := body.Sign
+		// 通过置空签名密钥进行移除从而不进行传递
+		body.Sign = ""
+		needEncData, _ := json.Marshal(body)
+		encrypt, err := common.Encrypt(signKey, needEncData)
+		signKey = ""
+		if err != nil {
+			_ = dh.jsonResponse(w, http.StatusInternalServerError, "Failed to encrypt data", nil)
+			return
+		}
+
+		// 返回响应
+		_ = dh.jsonResponse(w, http.StatusOK, "success", base64.StdEncoding.EncodeToString(encrypt))
+		return
+	} else if r.Method != http.MethodGet {
+		// GET请求就是下载
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -66,6 +104,33 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	filename := r.URL.Query().Get("filename")
 	expire := r.URL.Query().Get("expire")
 	sign := r.URL.Query().Get("sign")
+
+	// 加密参数
+	enc := r.URL.Query().Get("enc")
+	if enc != "" {
+		encBytes, err := base64.StdEncoding.DecodeString(enc)
+		if err != nil {
+			slog.Error(fmt.Sprintf("enc base64 decode error: %v", err))
+			http.Error(w, "Invalid enc", http.StatusBadRequest)
+			return
+		}
+		encDecrypt, err := common.Decrypt(dh.signKey, encBytes)
+		if err != nil {
+			slog.Error(fmt.Sprintf("enc decrypt error: %v", err))
+			http.Error(w, "Invalid enc", http.StatusBadRequest)
+			return
+		}
+		params := &DownloadParams{}
+		if err = json.Unmarshal(encDecrypt, &params); err != nil {
+			slog.Error(fmt.Sprintf("enc json unmarshal error: %v", err))
+			http.Error(w, "Invalid enc", http.StatusBadRequest)
+			return
+		}
+		urlStr = params.Url
+		filename = params.Filename
+		expire = params.Expire
+		sign = params.Sign
+	}
 
 	if urlStr == "" {
 		// 缺少必须参数
@@ -99,7 +164,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	needSignParams = append(needSignParams, dh.signKey)
 
-	if dh.signKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
+	if enc == "" && dh.signKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
 		// 数据签名不匹配，返回错误信息
 		http.Error(w, "Invalid sign", http.StatusBadRequest)
 		return
@@ -235,4 +300,15 @@ func (dh *DownloadHandler) downloadFile(w http.ResponseWriter, downPath string, 
 		return -1
 	}
 	return written
+}
+
+// 返回JSON格式的响应
+func (dh *DownloadHandler) jsonResponse(w http.ResponseWriter, code int, msg string, data any) error {
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]any{
+		"code": code,
+		"msg":  msg,
+		"data": data,
+	}
+	return json.NewEncoder(w).Encode(response)
 }

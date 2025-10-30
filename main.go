@@ -125,8 +125,8 @@ func main() {
 			webDavUser = "anonymous"
 		}
 		if webDavPass == "" && signKey != "" {
-			// 未设置webdav密码，使用sign_key的md5值
-			webDavPass = common.CalculateMD5(signKey)
+			// 未设置webdav密码，使用signKey
+			webDavPass = signKey
 		}
 		// 初始化 webdav handler
 		webDavHandler = handler.NewWebDavHandler(webDavDir, webDavUser, webDavPass)
