@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>生成文件下载链接</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -101,28 +100,11 @@
             display: none;
         }
 
-        .param-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .param-table th, .param-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-
-        .param-table th {
-            background-color: #f2f2f2;
-        }
-
         /* Add styles for long link wrapping */
         #downloadLink {
             word-wrap: break-word; /* Break the word if it's too long */
             white-space: pre-wrap; /* Preserve whitespace and line breaks */
             word-break: break-word; /* Allow the word to break when needed */
-            display: block;
             max-width: 100%;
             overflow-wrap: break-word;
         }
@@ -149,7 +131,8 @@
 <div class="section">
     <h2>填写参数</h2>
     <label for="url">下载 URL（必填）:</label>
-    <input type="text" id="url" placeholder="输入文件的 URL (例如: http://example.com/file.zip)" required>
+    <input type="text" id="url"
+           placeholder="输入文件的 URL (例如: http(s)://example.com/file.zip 或 file:///path/to/file.zip)" required>
 
     <label for="filename">文件名（可选）:</label>
     <input type="text" id="filename" placeholder="输入文件名（可选）">
@@ -167,46 +150,6 @@
     <h2>生成的下载链接：</h2>
     <pre><a id="downloadLink" href="#" target="_blank"></a></pre>
     <button class="copy-btn" id="copyBtn" onclick="copyLink()">复制链接</button>
-</div>
-
-<div class="section">
-    <h2>参数介绍</h2>
-    <h3>接口地址：/download</h3>
-    <p>通过此接口，您可以进行文件下载。以下是可用的参数：</p>
-    <table class="param-table">
-        <tr>
-            <th>参数</th>
-            <th>类型</th>
-            <th>描述</th>
-            <th>必填</th>
-        </tr>
-        <tr>
-            <td>url</td>
-            <td>string</td>
-            <td>文件 URL，支持 http, https, file 协议。file 协议示例：file:///path/to/file.zip</td>
-            <td>是</td>
-        </tr>
-        <tr>
-            <td>filename</td>
-            <td>string</td>
-            <td>下载保存的文件名。</td>
-            <td>否</td>
-        </tr>
-        <tr>
-            <td>expire</td>
-            <td>int</td>
-            <td>链接过期时间（单位：秒，Unix 时间戳）。</td>
-            <td>否</td>
-        </tr>
-        <tr>
-            <td>sign</td>
-            <td>string</td>
-            <td>签名参数，用于验证请求。仅在 &lt;your_sign_key&gt; 不为空时有效。</td>
-            <td>否</td>
-        </tr>
-    </table>
-    <p>签名计算方式：<strong>sign = md5(filename + "|" + url + "|" + expire + "|" + &lt;your_sign_key&gt;)</strong><br>
-        注意：空参数需排除，并且不要对进行签名的参数进行 URL 编码，结果小写。</p>
 </div>
 
 <div class="section">
@@ -239,7 +182,7 @@
             return;
         }
 
-        let expireTimestamp = null;
+        let expireTimestamp = "";
         if (expire) {
             const currentTime = new Date().getTime();
             const expireTime = new Date(expire).getTime();
@@ -247,45 +190,47 @@
                 alert("过期时间不能早于当前时间。");
                 return;
             }
-            expireTimestamp = Math.floor(expireTime / 1000);
+            expireTimestamp = `${Math.floor(expireTime / 1000)}`;
         }
 
-        let signature = "";
-        if (signKey) {
-            let signString = '';
-            if (filename) signString += filename + '|';
-            signString += url + '|';
-            if (expireTimestamp) signString += expireTimestamp + '|';
-            signString += signKey;
-            signature = generateMD5(signString);
-        }
+        const params = {
+            url: url,
+            filename: filename,
+            expire: expireTimestamp,
+            sign: signKey
+        };
 
-        const siteOrigin = window.location.origin;
-        let downloadLink = `${siteOrigin}/download?url=${encodeURIComponent(url)}`;
-        if (filename) {
-            downloadLink += `&filename=${encodeURIComponent(filename)}`;
-        }
-        if (expireTimestamp) {
-            downloadLink += `&expire=${expireTimestamp}`;
-        }
-        if (signature) {
-            downloadLink += `&sign=${signature}`;
-        }
+        fetch("/download", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(params)
+        }).then(response => {
+            if (!response.ok) {
+                throw new Error("网络响应错误: " + response.status);
+            }
+            return response.json();
+        }).then(result => {
+            if (result.code === 200) {
+                const downloadLink = `${window.location.origin}/download?enc=${result.data}`;
+                const linkElement = document.getElementById('downloadLink');
+                linkElement.textContent = downloadLink;
+                linkElement.href = downloadLink;
+                document.getElementById('output').style.display = 'block';
 
-        const linkElement = document.getElementById('downloadLink');
-        linkElement.textContent = downloadLink;
-        linkElement.href = downloadLink;
-        document.getElementById('output').style.display = 'block';
-
-        if (navigator.clipboard) {
-            document.getElementById('copyBtn').classList.remove('hidden');
-        } else {
-            document.getElementById('copyBtn').classList.add('hidden');
-        }
-    }
-
-    function generateMD5(string) {
-        return CryptoJS.MD5(string).toString(CryptoJS.enc.Hex);
+                if (navigator.clipboard) {
+                    document.getElementById('copyBtn').classList.remove('hidden');
+                } else {
+                    document.getElementById('copyBtn').classList.add('hidden');
+                }
+            } else {
+                alert("生成失败: " + result.msg);
+            }
+        }).catch(error => {
+            console.error(error);
+            alert("请求失败: " + error);
+        });
     }
 
     function copyLink() {
