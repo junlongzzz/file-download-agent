@@ -100,11 +100,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	urlStr := r.URL.Query().Get("url")
-	filename := r.URL.Query().Get("filename")
-	expire := r.URL.Query().Get("expire")
-	sign := r.URL.Query().Get("sign")
-
+	params := &DownloadParams{}
 	// 加密参数
 	enc := r.URL.Query().Get("enc")
 	if enc != "" {
@@ -120,53 +116,46 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid enc", http.StatusBadRequest)
 			return
 		}
-		params := &DownloadParams{}
 		if err = json.Unmarshal(encDecrypt, &params); err != nil {
 			slog.Error(fmt.Sprintf("enc json unmarshal error: %v", err))
 			http.Error(w, "Invalid enc", http.StatusBadRequest)
 			return
 		}
-		urlStr = params.Url
-		filename = params.Filename
-		expire = params.Expire
-		sign = params.Sign
+	} else {
+		params.Url = r.URL.Query().Get("url")
+		params.Filename = r.URL.Query().Get("filename")
+		params.Expire = r.URL.Query().Get("expire")
+		params.Sign = r.URL.Query().Get("sign")
 	}
 
-	if urlStr == "" {
+	if params.Url == "" {
 		// 缺少必须参数
 		http.Error(w, "Missing required parameter: url", http.StatusBadRequest)
 		return
 	}
 
-	parseUrl, err := url.Parse(urlStr)
+	if enc == "" && dh.signKey != "" {
+		// 需要签名校验的参数，为空的参数不校验 sign = md5(filename + "|" + url + "|" + expire + "|" + <your_sign_key>)
+		var needSignParams []string
+		if params.Filename != "" {
+			needSignParams = append(needSignParams, params.Filename)
+		}
+		needSignParams = append(needSignParams, params.Url)
+		if params.Expire != "" {
+			needSignParams = append(needSignParams, params.Expire)
+		}
+		needSignParams = append(needSignParams, dh.signKey)
+
+		if strings.ToLower(params.Sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
+			// 数据签名不匹配，返回错误信息
+			http.Error(w, "Invalid sign", http.StatusBadRequest)
+			return
+		}
+	}
+
+	parseUrl, err := url.Parse(params.Url)
 	if err != nil {
 		http.Error(w, "Failed to parse url", http.StatusBadRequest)
-		return
-	}
-
-	// 需要签名校验的参数，为空的参数不校验
-	var needSignParams []string
-
-	if filename == "" {
-		// 如果没有指定下载文件名，直接从链接地址中获取
-		if parseUrl.Path != "" {
-			filename = path.Base(parseUrl.Path)
-		} else {
-			filename = parseUrl.Hostname()
-		}
-	} else {
-		needSignParams = append(needSignParams, filename)
-	}
-
-	needSignParams = append(needSignParams, urlStr)
-	if expire != "" {
-		needSignParams = append(needSignParams, expire)
-	}
-	needSignParams = append(needSignParams, dh.signKey)
-
-	if enc == "" && dh.signKey != "" && strings.ToLower(sign) != common.CalculateMD5(strings.Join(needSignParams, "|")) {
-		// 数据签名不匹配，返回错误信息
-		http.Error(w, "Invalid sign", http.StatusBadRequest)
 		return
 	}
 
@@ -176,9 +165,18 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 校验下载链接是否过期
-	if expire != "" {
-		timestamp, err := strconv.ParseInt(expire, 10, 64)
+	if params.Filename == "" {
+		// 如果没有指定下载文件名，直接从链接地址中获取
+		if parseUrl.Path != "" {
+			params.Filename = path.Base(parseUrl.Path)
+		} else {
+			params.Filename = parseUrl.Hostname()
+		}
+	}
+
+	if params.Expire != "" {
+		// 校验下载链接是否过期
+		timestamp, err := strconv.ParseInt(params.Expire, 10, 64)
 		if err != nil {
 			http.Error(w, "Invalid expire parameter: must be a valid UNIX timestamp", http.StatusBadRequest)
 			return
@@ -194,9 +192,9 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var written int64
 	if parseUrl.Scheme == "file" {
 		downPath, _ := url.QueryUnescape(parseUrl.RequestURI())
-		written = dh.downloadFile(w, downPath, filename)
+		written = dh.downloadFile(w, downPath, params.Filename)
 	} else {
-		written = dh.downloadUrl(w, r, urlStr, filename)
+		written = dh.downloadUrl(w, r, params.Url, params.Filename)
 	}
 	if written >= 0 {
 		// 解析user-agent
@@ -204,8 +202,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		brwName, brwVersion := dh.ua.Browser()
 		// 打印下载日志 输出时间、访问UA、文件名、下载地址、文件大小
 		slog.Info(fmt.Sprintf("%s - %s | Size: %s | IP: %s | UA: %s/%s(%s)",
-			urlStr,
-			filename,
+			params.Url, params.Filename,
 			common.FormatBytes(written),
 			common.GetRealIP(r),
 			dh.ua.OS(), brwName, brwVersion))

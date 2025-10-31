@@ -35,6 +35,9 @@ chmod +x fda
 
 > args has higher priority than env
 
+> [!IMPORTANT]
+> It is strongly recommended to specify the `sign-key` in the production environment.
+
 ## Run
 
 - Show usage
