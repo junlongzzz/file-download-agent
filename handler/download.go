@@ -92,7 +92,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 返回响应
-		_ = dh.jsonResponse(w, http.StatusOK, "success", base64.StdEncoding.EncodeToString(encrypt))
+		_ = dh.jsonResponse(w, http.StatusOK, "success", base64.RawURLEncoding.EncodeToString(encrypt))
 		return
 	} else if r.Method != http.MethodGet {
 		// GET请求就是下载
@@ -104,7 +104,7 @@ func (dh *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 加密参数
 	enc := r.URL.Query().Get("enc")
 	if enc != "" {
-		encBytes, err := base64.StdEncoding.DecodeString(enc)
+		encBytes, err := base64.RawURLEncoding.DecodeString(enc)
 		if err != nil {
 			slog.Error(fmt.Sprintf("enc base64 decode error: %v", err))
 			http.Error(w, "Invalid enc", http.StatusBadRequest)
