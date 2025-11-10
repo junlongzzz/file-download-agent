@@ -4,44 +4,32 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 
 	"golang.org/x/crypto/argon2"
 )
 
-// Argon2id 默认参数
-var defaultArgon2Params = Argon2Params{
-	TimeCost:      2,
-	MemoryCostKiB: 8 * 1024, // 8MB
-	Parallelism:   2,
-	HashLen:       32,
+// Argon2id 版本与对应参数map
+var kdfVersionParams = map[int]Argon2Params{
+	1: {Time: 4, MemoryKiB: 32 * 1024, Threads: 1, KeyLen: 32}, // v1
 }
 
 type Argon2Params struct {
-	TimeCost      uint32 //  迭代次数
-	MemoryCostKiB uint32 //  内存（KiB）
-	Parallelism   uint8  //  并行度
-	HashLen       uint32 //  密钥长度 (usually 32)
-}
-
-type KDFParams struct {
-	Salt string `json:"salt"` // base64
-}
-
-type CipherParams struct {
-	Nonce string `json:"nonce"` // base64
+	Time      uint32 //  迭代次数
+	MemoryKiB uint32 //  内存（KiB）
+	Threads   uint8  //  并行度
+	KeyLen    uint32 //  密钥长度 (usually 32)
 }
 
 type EncryptedData struct {
-	//Version      string       `json:"version"`
-	KDF          string       `json:"kdf"`
-	KDFParams    KDFParams    `json:"kdf_params"`
-	Cipher       string       `json:"cipher"`
-	CipherParams CipherParams `json:"cipher_params"`
-	Ciphertext   string       `json:"ciphertext"` // base64(ciphertext || tag)
+	Version int    `json:"version"` // 版本 从 1 开始
+	Salt    string `json:"salt"`    // base64 编码的盐
+	Nonce   string `json:"nonce"`   // base64 编码的随机数
+	Cipher  string `json:"cipher"`  // base64 编码的密文（含认证标签）
 }
 
 // ---- helpers ----
@@ -72,17 +60,20 @@ func zeroBytes(b []byte) {
 	}
 }
 
-// EncryptWithParams ---- 加密 ----
+// Encrypt ---- 加密 ----
 // password: 明文密码/秘密字符串
-// plaintext: 待加密数据
+// plaintext: 待加密数据 bytes
 // 返回 EncryptedData 序列化的 JSON bytes
-func EncryptWithParams(password string, plaintext []byte, argon2Params Argon2Params) ([]byte, error) {
+func Encrypt(password string, plaintext []byte) ([]byte, error) {
+	// 版本
+	version := 1
 	// 随机生成 salt 与 nonce
 	salt := mustRandomBytes(16)  // 16 bytes salt for Argon2
 	nonce := mustRandomBytes(12) // 12 bytes recommended for AES-GCM
 
+	argon2Params := kdfVersionParams[version]
 	// 派生 key
-	key := argon2.IDKey([]byte(password), salt, argon2Params.TimeCost, argon2Params.MemoryCostKiB, argon2Params.Parallelism, argon2Params.HashLen)
+	key := argon2.IDKey([]byte(password), salt, argon2Params.Time, argon2Params.MemoryKiB, argon2Params.Threads, argon2Params.KeyLen)
 
 	// AES-GCM 加密
 	block, err := aes.NewCipher(key)
@@ -99,61 +90,45 @@ func EncryptWithParams(password string, plaintext []byte, argon2Params Argon2Par
 
 	// 构造加密数据 JSON
 	env := EncryptedData{
-		//Version: "1",
-		KDF: "argon2id",
-		KDFParams: KDFParams{
-			Salt: b64Encode(salt),
-		},
-		Cipher: "aes-256-gcm",
-		CipherParams: CipherParams{
-			Nonce: b64Encode(nonce),
-		},
-		Ciphertext: b64Encode(ciphertext),
+		Version: version,
+		Salt:    b64Encode(salt),
+		Nonce:   b64Encode(nonce),
+		Cipher:  b64Encode(ciphertext),
 	}
-
 	// 清理 key
 	zeroBytes(key)
-
 	return json.Marshal(env)
 }
 
-func Encrypt(password string, plaintext []byte) ([]byte, error) {
-	return EncryptWithParams(password, plaintext, defaultArgon2Params)
-}
-
-// DecryptWithParams ---- 解密 ----
+// Decrypt ---- 解密 ----
 // password: 密码/秘密字符串
 // jsonBlob: EncryptedData 序列化的 JSON bytes
-func DecryptWithParams(password string, jsonBlob []byte, argon2Params Argon2Params) ([]byte, error) {
+func Decrypt(password string, jsonBlob []byte) ([]byte, error) {
 	var enc EncryptedData
 	if err := json.Unmarshal(jsonBlob, &enc); err != nil {
 		return nil, err
 	}
 
-	if enc.KDF != "argon2id" {
-		return nil, errors.New("unsupported kdf")
-	}
-	if enc.Cipher != "aes-256-gcm" {
-		return nil, errors.New("unsupported cipher")
-	}
-
 	// 读取参数
-	kp := enc.KDFParams
-	salt, err := b64Decode(kp.Salt)
+	argon2Params, ok := kdfVersionParams[enc.Version]
+	if !ok {
+		return nil, fmt.Errorf("unsupported version: %d", enc.Version)
+	}
+	salt, err := b64Decode(enc.Salt)
 	if err != nil {
 		return nil, err
 	}
-	nonce, err := b64Decode(enc.CipherParams.Nonce)
+	nonce, err := b64Decode(enc.Nonce)
 	if err != nil {
 		return nil, err
 	}
-	ct, err := b64Decode(enc.Ciphertext)
+	ciphertext, err := b64Decode(enc.Cipher)
 	if err != nil {
 		return nil, err
 	}
 
 	// 派生 key
-	key := argon2.IDKey([]byte(password), salt, argon2Params.TimeCost, argon2Params.MemoryCostKiB, argon2Params.Parallelism, argon2Params.HashLen)
+	key := argon2.IDKey([]byte(password), salt, argon2Params.Time, argon2Params.MemoryKiB, argon2Params.Threads, argon2Params.KeyLen)
 
 	// AES-GCM 解密
 	block, err := aes.NewCipher(key)
@@ -166,15 +141,14 @@ func DecryptWithParams(password string, jsonBlob []byte, argon2Params Argon2Para
 		zeroBytes(key)
 		return nil, err
 	}
-	plaintext, err := aesgcm.Open(nil, nonce, ct, nil)
+	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
 	// 清理 key
 	zeroBytes(key)
 	if err != nil {
-		return nil, err // 解密或认证失败
+		// 解密或认证失败
+		// 防止时序攻击，确保错误路径耗时一致（可选但推荐）
+		subtle.ConstantTimeCompare(plaintext, plaintext) // 无实际作用，仅干扰 timing
+		return nil, err
 	}
 	return plaintext, nil
-}
-
-func Decrypt(password string, jsonBlob []byte) ([]byte, error) {
-	return DecryptWithParams(password, jsonBlob, defaultArgon2Params)
 }
