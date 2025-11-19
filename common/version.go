@@ -5,7 +5,7 @@ import "fmt"
 // 语义化的版本号 Semantic Versioning
 const (
 	versionX byte = 2
-	versionY byte = 0
+	versionY byte = 1
 	versionZ byte = 0
 )
 
