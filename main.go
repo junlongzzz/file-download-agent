@@ -50,15 +50,15 @@ func main() {
 	certKeyFile := os.Getenv("FDA_CERT_KEY_FILE")
 	// 从运行参数中获取运行参数
 	// 会覆盖环境变量的值，如果不存在默认就使用环境变量内的值
-	flag.StringVar(&host, "host", host, "server host")
-	flag.IntVar(&port, "port", port, "server port")
+	flag.StringVar(&host, "host", host, "server host (default 0.0.0.0)")
+	flag.IntVar(&port, "port", port, "server port (default 18080)")
 	flag.StringVar(&signKey, "sign-key", signKey, "server download sign key")
-	flag.StringVar(&dir, "dir", dir, "download directory, default ./files")
+	flag.StringVar(&dir, "dir", dir, "download directory (default ./files)")
 	flag.BoolVar(&webDavEnable, "webdav-enable", webDavEnable, "enable webdav server or not")
-	flag.StringVar(&webDavDir, "webdav-dir", webDavDir, "webdav root directory, default use <dir>")
-	flag.StringVar(&webDavUser, "webdav-user", webDavUser, "webdav username, default anonymous")
-	flag.StringVar(&webDavPass, "webdav-pass", webDavPass, "webdav password, default md5(sign_key)")
-	flag.StringVar(&logLevel, "log-level", logLevel, "log level: debug, info, warn, error")
+	flag.StringVar(&webDavDir, "webdav-dir", webDavDir, "webdav root directory (default <dir>)")
+	flag.StringVar(&webDavUser, "webdav-user", webDavUser, "webdav username (default anonymous)")
+	flag.StringVar(&webDavPass, "webdav-pass", webDavPass, "webdav password (default <sign_key>)")
+	flag.StringVar(&logLevel, "log-level", logLevel, "log level: debug, info, warn, error (default info)")
 	flag.StringVar(&certFile, "cert-file", certFile, "cert file path")
 	flag.StringVar(&certKeyFile, "cert-key-file", certKeyFile, "cert key file path")
 	var version bool
