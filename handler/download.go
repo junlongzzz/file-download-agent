@@ -51,17 +51,23 @@ func NewDownloadHandler(dir, signKey string) *DownloadHandler {
 			"User-Agent":        true,
 			"Authorization":     true,
 			"Cookie":            true,
+			"Referer":           true,
+			"Origin":            true,
 		},
 		forwardRespHeaders: map[string]bool{
 			"Content-Type":        true,
 			"Content-Length":      true,
 			"Content-Disposition": true, // 用于文件名
 			"Content-Range":       true, // 断点续传支持
+			"Content-Encoding":    true,
+			"Content-Language":    true,
 			"Accept-Ranges":       true,
 			"Last-Modified":       true,
 			"ETag":                true,
 			"Cache-Control":       true,
 			"Expires":             true,
+			"Date":                true,
+			"Set-Cookie":          true,
 		},
 	}
 }
