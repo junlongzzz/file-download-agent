@@ -4,6 +4,7 @@ tasks:
     env:
       CGO_ENABLED: 0
     cmds:
+      - go mod tidy
       - go build -ldflags="-s -w" -trimpath -o ./out/fda{{exeExt}} .
 
   run:
