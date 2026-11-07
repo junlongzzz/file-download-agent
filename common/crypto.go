@@ -4,7 +4,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,10 +12,25 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+const (
+	// salt 长度，Argon2id 推荐至少 16 字节
+	kdfSaltLen = 16
+	// AES-GCM 标准 nonce 长度，长度不符时 Open 会 panic
+	gcmNonceLen = 12
+	// AES-GCM 认证标签长度，密文至少需要包含标签
+	gcmTagLen = 16
+	// 同时执行的 KDF 数量上限。单次 Argon2id 使用 32 MiB 内存，
+	// 限制并发可避免恶意请求耗尽 CPU 和内存。
+	maxConcurrentKDF = 4
+)
+
 // Argon2id 版本与对应参数map
 var kdfVersionParams = map[int]Argon2Params{
 	1: {Time: 4, MemoryKiB: 32 * 1024, Threads: 1, KeyLen: 32}, // v1
 }
+
+// kdfSemaphore 限制同时执行的 KDF 数量
+var kdfSemaphore = make(chan struct{}, maxConcurrentKDF)
 
 type Argon2Params struct {
 	Time      uint32 //  迭代次数
@@ -60,6 +74,15 @@ func zeroBytes(b []byte) {
 	}
 }
 
+// deriveKey 在并发信号量保护下执行 Argon2id 派生密钥
+func deriveKey(password string, salt []byte, params Argon2Params) []byte {
+	kdfSemaphore <- struct{}{}
+	defer func() {
+		<-kdfSemaphore
+	}()
+	return argon2.IDKey([]byte(password), salt, params.Time, params.MemoryKiB, params.Threads, params.KeyLen)
+}
+
 // Encrypt ---- 加密 ----
 // password: 明文密码/秘密字符串
 // plaintext: 待加密数据 bytes
@@ -68,12 +91,12 @@ func Encrypt(password string, plaintext []byte) ([]byte, error) {
 	// 版本
 	version := 1
 	// 随机生成 salt 与 nonce
-	salt := mustRandomBytes(16)  // 16 bytes salt for Argon2
-	nonce := mustRandomBytes(12) // 12 bytes recommended for AES-GCM
+	salt := mustRandomBytes(kdfSaltLen)   // 16 bytes salt for Argon2
+	nonce := mustRandomBytes(gcmNonceLen) // 12 bytes recommended for AES-GCM
 
 	argon2Params := kdfVersionParams[version]
 	// 派生 key
-	key := argon2.IDKey([]byte(password), salt, argon2Params.Time, argon2Params.MemoryKiB, argon2Params.Threads, argon2Params.KeyLen)
+	key := deriveKey(password, salt, argon2Params)
 
 	// AES-GCM 加密
 	block, err := aes.NewCipher(key)
@@ -127,8 +150,20 @@ func Decrypt(password string, jsonBlob []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// 在运行昂贵的 KDF 之前校验长度。AES-GCM 的 Open 在 nonce 长度不是
+	// 12 字节时会 panic，必须提前拒绝；salt 和密文长度同样需要在可控范围内。
+	if len(salt) != kdfSaltLen {
+		return nil, fmt.Errorf("invalid salt length: %d", len(salt))
+	}
+	if len(nonce) != gcmNonceLen {
+		return nil, fmt.Errorf("invalid nonce length: %d", len(nonce))
+	}
+	if len(ciphertext) < gcmTagLen {
+		return nil, fmt.Errorf("invalid ciphertext length: %d", len(ciphertext))
+	}
+
 	// 派生 key
-	key := argon2.IDKey([]byte(password), salt, argon2Params.Time, argon2Params.MemoryKiB, argon2Params.Threads, argon2Params.KeyLen)
+	key := deriveKey(password, salt, argon2Params)
 
 	// AES-GCM 解密
 	block, err := aes.NewCipher(key)
@@ -145,9 +180,7 @@ func Decrypt(password string, jsonBlob []byte) ([]byte, error) {
 	// 清理 key
 	zeroBytes(key)
 	if err != nil {
-		// 解密或认证失败
-		// 防止时序攻击，确保错误路径耗时一致（可选但推荐）
-		subtle.ConstantTimeCompare(plaintext, plaintext) // 无实际作用，仅干扰 timing
+		// 解密或认证失败，AES-GCM 自身已做认证校验
 		return nil, err
 	}
 	return plaintext, nil

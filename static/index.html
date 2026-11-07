@@ -1,93 +1,1321 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件下载代理</title>
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#eef1ee" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0e1614" media="(prefers-color-scheme: dark)">
+    <title>File Download Agent · 下载链接生成器</title>
+    <script>
+        // 在首次渲染前确定主题，避免页面闪烁
+        (function () {
+            var saved = null;
+            try {
+                saved = localStorage.getItem('fda-theme');
+            } catch (e) {
+                // 隐私模式下 localStorage 可能不可用
+            }
+            var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+        })();
+    </script>
     <style>
+        :root {
+            color-scheme: light;
+            --paper: #eef1ee;
+            --panel: #fbfcfa;
+            --ink: #14201d;
+            --muted: #5c6b66;
+            --line: #cdd6d1;
+            --line-strong: #a9b7b1;
+            --accent: #0f5c4e;
+            --accent-ink: #f4fbf8;
+            --signal: #c98a12;
+            --danger: #a83a2a;
+            --selection: #dfe7e2;
+            --focus-ring: rgba(15, 92, 78, .18);
+            --radius: 6px;
+            --sans: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+            --mono: "Cascadia Code", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+        }
+
+        [data-theme="dark"] {
+            color-scheme: dark;
+            --paper: #0e1614;
+            --panel: #15201d;
+            --ink: #e6ede9;
+            --muted: #93a39d;
+            --line: #283531;
+            --line-strong: #3d4d47;
+            --accent: #5fd0b4;
+            --accent-ink: #08120f;
+            --signal: #e8b33b;
+            --danger: #f08a76;
+            --selection: #24352f;
+            --focus-ring: rgba(95, 208, 180, .22);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f4f4f4;
-        }
-
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-
-        .section {
-            margin: 30px 0;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .section h2 {
-            color: #333;
-        }
-
-        .section p {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--sans);
             font-size: 16px;
-            line-height: 1.6;
-            color: #555;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        ::selection {
+            background: var(--selection);
+            color: var(--ink);
+        }
+
+        .shell {
+            width: 100%;
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            min-height: 60px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .brand {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            min-width: 0;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .brand strong {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -.01em;
+            white-space: nowrap;
+        }
+
+        .brand .descriptor {
+            overflow: hidden;
+            color: var(--muted);
+            font-size: 12.5px;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            transition: color .15s ease, border-color .15s ease;
+        }
+
+        .icon-btn:hover {
+            border-color: var(--line-strong);
+            color: var(--ink);
+        }
+
+        .icon-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .icon-moon {
+            display: none;
+        }
+
+        [data-theme="dark"] .icon-sun {
+            display: none;
+        }
+
+        [data-theme="dark"] .icon-moon {
+            display: block;
+        }
+
+        .hero {
+            max-width: 760px;
+            padding: 28px 0 20px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(24px, 3.2vw, 32px);
+            font-weight: 700;
+            letter-spacing: -.02em;
+            line-height: 1.25;
+        }
+
+        .hero p {
+            max-width: 52ch;
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 14.5px;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(270px, .85fr);
+            gap: 26px;
+            align-items: start;
+            padding-bottom: 48px;
+        }
+
+        @media (max-width: 880px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .panel-head h2 {
+            margin: 0;
+            font-size: 13.5px;
+            font-weight: 650;
+            letter-spacing: .01em;
+        }
+
+        .panel-body {
+            padding: 22px 20px 24px;
+        }
+
+        .field {
+            margin-bottom: 18px;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 7px;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .tag {
+            margin-left: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .field-hint {
+            margin: 7px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="datetime-local"] {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 1px solid var(--line-strong);
+            border-radius: 4px;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--sans);
+            font-size: 14px;
+            line-height: 1.4;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+
+        input::placeholder {
+            color: var(--muted);
+            opacity: .75;
+        }
+
+        input[type="text"]:hover,
+        input[type="password"]:hover,
+        input[type="datetime-local"]:hover {
+            border-color: var(--muted);
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        input[type="datetime-local"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        .url-shell {
+            display: flex;
+            align-items: stretch;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius);
+            background: var(--paper);
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+
+        .url-shell:hover {
+            border-color: var(--muted);
+        }
+
+        .url-shell:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        .scheme {
+            position: relative;
+            display: flex;
+            flex: 0 0 auto;
+            align-items: stretch;
+            border-right: 1px solid var(--line);
+        }
+
+        .scheme-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 98px;
+            padding: 0 10px 0 12px;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font-family: var(--mono);
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+            transition: color .15s ease;
+        }
+
+        .scheme-trigger:hover {
+            color: var(--accent);
+        }
+
+        .scheme-chevron {
+            width: 12px;
+            height: 12px;
+            color: var(--muted);
+            transition: transform .15s ease;
+        }
+
+        .scheme-trigger:hover .scheme-chevron,
+        .scheme-trigger[aria-expanded="true"] .scheme-chevron {
+            color: var(--accent);
+        }
+
+        .scheme-trigger[aria-expanded="true"] .scheme-chevron {
+            transform: rotate(180deg);
+        }
+
+        .scheme-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 20;
+            min-width: 132px;
+            margin: 0;
+            padding: 4px;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius);
+            background: var(--panel);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+            list-style: none;
+        }
+
+        [data-theme="dark"] .scheme-menu {
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+        }
+
+        .scheme-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 8px 9px;
+            border-radius: 3px;
+            color: var(--ink);
+            font-family: var(--mono);
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .scheme-option:hover,
+        .scheme-option:focus {
+            background: var(--selection);
+        }
+
+        .scheme-option:focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: -2px;
+        }
+
+        .scheme-option.is-selected {
+            color: var(--accent);
+        }
+
+        .scheme-check {
+            font-size: 11px;
+            opacity: 0;
+        }
+
+        .scheme-option.is-selected .scheme-check {
+            opacity: 1;
+        }
+
+        .url-shell input {
+            flex: 1;
+            min-width: 0;
+            min-height: 48px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            font-family: var(--mono);
+            font-size: 14.5px;
+        }
+
+        .url-shell input:hover,
+        .url-shell input:focus {
+            border: 0;
+            box-shadow: none;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 620px) {
+            .field-row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+        }
+
+        .input-with-action {
+            position: relative;
+        }
+
+        .input-with-action input {
+            padding-right: 64px;
+        }
+
+        .reveal-btn {
+            position: absolute;
+            top: 50%;
+            right: 6px;
+            padding: 6px 8px;
+            transform: translateY(-50%);
+            border: 0;
+            border-radius: 3px;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .reveal-btn:hover {
+            background: var(--selection);
+            color: var(--ink);
+        }
+
+        .form-actions {
+            margin-top: 4px;
         }
 
         .btn {
-            display: inline-block;
-            background-color: #3498db;
-            color: white;
-            padding: 10px 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+            padding: 10px 18px;
+            border: 1px solid transparent;
             border-radius: 4px;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 650;
             text-decoration: none;
-            margin-top: 20px;
+            cursor: pointer;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
         }
 
-        .btn:hover {
-            background-color: #2980b9;
+        .btn-primary {
+            width: 100%;
+            background: var(--accent);
+            color: var(--accent-ink);
         }
 
-        footer {
-            text-align: center;
-            padding: 10px;
+        .btn-primary:hover {
+            filter: brightness(1.06);
         }
 
-        footer a {
-            color: #0366d6;
+        .btn-primary:active {
+            filter: brightness(.96);
+        }
+
+        .btn-primary:disabled {
+            opacity: .55;
+            cursor: progress;
+        }
+
+        .btn-ghost {
+            border-color: var(--line-strong);
+            background: transparent;
+            color: var(--ink);
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--ink);
+            background: var(--selection);
+        }
+
+        .btn:focus-visible,
+        .icon-btn:focus-visible,
+        .reveal-btn:focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: 2px;
+        }
+
+        .message {
+            margin: 14px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .message.is-error {
+            color: var(--danger);
+        }
+
+        .message.is-success {
+            color: var(--accent);
+        }
+
+        .output {
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 1px dashed var(--line);
+        }
+
+        .output-label {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .output input {
+            overflow: hidden;
+            font-family: var(--mono);
+            font-size: 12.5px;
+            text-overflow: ellipsis;
+        }
+
+        .output-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .output-actions .btn {
+            min-height: 38px;
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        .side {
+            display: flex;
+            flex-direction: column;
+            gap: 26px;
+        }
+
+        .spec {
+            margin: 0;
+        }
+
+        .spec-row {
+            display: grid;
+            grid-template-columns: 64px 1fr;
+            gap: 12px;
+            padding: 11px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .spec-row:first-child {
+            padding-top: 0;
+        }
+
+        .spec-row:last-child {
+            padding-bottom: 0;
+            border-bottom: 0;
+        }
+
+        .spec dt {
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .spec dd {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .spec code {
+            font-size: 11.5px;
+        }
+
+        .mini-btn {
+            padding: 3px 8px;
+            border: 1px solid var(--line-strong);
+            border-radius: 3px;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 11px;
+            cursor: pointer;
+            transition: color .15s ease, border-color .15s ease;
+        }
+
+        .mini-btn:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        .mini-btn:focus-visible {
+            outline: 2px solid var(--signal);
+            outline-offset: 2px;
+        }
+
+        code {
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: var(--selection);
+            font-family: var(--mono);
+            font-size: .92em;
+        }
+
+        .notes {
+            padding: 0 2px;
+        }
+
+        .notes h2 {
+            margin: 0 0 10px;
+            font-size: 13px;
+            font-weight: 650;
+        }
+
+        .notes ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .notes li {
+            margin-bottom: 6px;
+        }
+
+        .notes li::marker {
+            color: var(--line-strong);
+        }
+
+        .notes code {
+            color: var(--ink);
+        }
+
+        .footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 22px 0 36px;
+            border-top: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .footer a {
+            border-bottom: 1px solid var(--line-strong);
+            color: var(--ink);
             text-decoration: none;
         }
 
-        footer a:hover {
-            text-decoration: underline;
+        .footer a:hover {
+            border-color: var(--ink);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto;
+            }
+
+            *,
+            *::before,
+            *::after {
+                transition-duration: .01ms !important;
+                animation-duration: .01ms !important;
+            }
         }
     </style>
 </head>
 <body>
+<div class="shell">
+    <header class="topbar">
+        <a class="brand" href="/">
+            <strong>File Download Agent</strong>
+            <span class="descriptor">自托管下载中转</span>
+        </a>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="切换到深色模式">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"></path>
+            </svg>
+        </button>
+    </header>
 
-<h1>文件下载代理</h1>
+    <main id="generator">
+        <section class="hero">
+            <h1>把地址变成一条下载链接</h1>
+            <p>服务器代为中转。支持断点续传、有效期与签名校验。</p>
+        </section>
 
-<div class="section">
-    <h2>下载文件</h2>
-    <p>
-        使用此功能可以通过服务器中转下载指定的链接地址或服务器储存文件。您可以选择设置下载文件名、设置链接过期时间、以及添加签名保证安全。
-    </p>
-    <a href="link.html" class="btn">生成下载链接</a>
+        <div class="workspace">
+            <section class="panel" aria-labelledby="generator-title">
+                <div class="panel-head">
+                    <h2 id="generator-title">生成下载链接</h2>
+                </div>
+                <div class="panel-body">
+                    <form id="generator-form" novalidate>
+                        <div class="field">
+                            <label for="url">下载地址 <span class="tag">必填</span></label>
+                            <div class="url-shell">
+                                <div class="scheme" id="scheme">
+                                    <button class="scheme-trigger" id="scheme-trigger" type="button"
+                                            aria-haspopup="listbox" aria-expanded="false"
+                                            aria-controls="scheme-menu"
+                                            aria-label="下载地址协议，当前 https://">
+                                        <span id="scheme-value">https://</span>
+                                        <svg class="scheme-chevron" viewBox="0 0 12 12" fill="none"
+                                             stroke="currentColor" stroke-width="1.5"
+                                             stroke-linecap="round" stroke-linejoin="round"
+                                             aria-hidden="true">
+                                            <path d="M2.5 4.5 6 8l3.5-3.5"></path>
+                                        </svg>
+                                    </button>
+                                    <ul class="scheme-menu" id="scheme-menu" role="listbox"
+                                        aria-label="下载地址协议" hidden>
+                                        <li class="scheme-option is-selected" role="option"
+                                            data-value="https" aria-selected="true" tabindex="-1">
+                                            <span>https://</span>
+                                            <span class="scheme-check" aria-hidden="true">✓</span>
+                                        </li>
+                                        <li class="scheme-option" role="option"
+                                            data-value="http" aria-selected="false" tabindex="-1">
+                                            <span>http://</span>
+                                            <span class="scheme-check" aria-hidden="true">✓</span>
+                                        </li>
+                                        <li class="scheme-option" role="option"
+                                            data-value="file" aria-selected="false" tabindex="-1">
+                                            <span>file://</span>
+                                            <span class="scheme-check" aria-hidden="true">✓</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <input id="url" name="url" type="text" inputmode="url"
+                                       autocomplete="off" spellcheck="false"
+                                       placeholder="example.com/file.zip"
+                                       required aria-describedby="url-hint">
+                            </div>
+                            <p class="field-hint" id="url-hint">
+                                填写主机名和路径，例如 example.com/file.zip；也可直接粘贴完整 URL。
+                            </p>
+                        </div>
+
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="filename">文件名 <span class="tag">可选</span></label>
+                                <input id="filename" name="filename" type="text"
+                                       autocomplete="off" placeholder="留空则自动获取">
+                            </div>
+                            <div class="field">
+                                <label for="expire">有效期 <span class="tag">可选</span></label>
+                                <input id="expire" name="expire" type="datetime-local" step="1">
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="signKey">签名密钥</label>
+                            <div class="input-with-action">
+                                <input id="signKey" name="signKey" type="password"
+                                       autocomplete="off" placeholder="与服务器 sign-key 一致"
+                                       aria-describedby="sign-hint">
+                                <button class="reveal-btn" id="reveal-key" type="button"
+                                        aria-label="显示签名密钥">显示</button>
+                            </div>
+                            <p class="field-hint" id="sign-hint">服务器设置了 sign-key 时必填；未设置时留空即可。</p>
+                        </div>
+
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="submit-btn" type="submit">
+                                <span class="btn-label">生成下载链接</span>
+                            </button>
+                        </div>
+
+                        <p class="message" id="message" role="status" hidden></p>
+
+                        <div class="output" id="output" hidden>
+                            <label class="output-label" for="downloadLink">下载链接</label>
+                            <input id="downloadLink" type="text" readonly>
+                            <div class="output-actions">
+                                <button class="btn btn-ghost" id="copy-btn" type="button">复制链接</button>
+                                <a class="btn btn-ghost" id="open-link" href="#" target="_blank" rel="noopener">打开</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <aside class="side">
+                <section class="panel" aria-labelledby="webdav-title">
+                    <div class="panel-head">
+                        <h2 id="webdav-title">WebDAV 访问</h2>
+                        <button class="mini-btn" id="copy-webdav" type="button">复制地址</button>
+                    </div>
+                    <div class="panel-body">
+                        <dl class="spec">
+                            <div class="spec-row">
+                                <dt>地址</dt>
+                                <dd><code id="webdav-url">/webdav/</code></dd>
+                            </div>
+                            <div class="spec-row">
+                                <dt>用户名</dt>
+                                <dd><code>anonymous</code>（默认）</dd>
+                            </div>
+                            <div class="spec-row">
+                                <dt>密码</dt>
+                                <dd>sign-key，或启动日志中的随机密码</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="notes" aria-labelledby="notes-title">
+                    <h2 id="notes-title">使用说明</h2>
+                    <ul>
+                        <li>支持 <code>http</code>、<code>https</code> 与 <code>file://</code> 地址。</li>
+                        <li><code>file://</code> 仅能访问服务器下载目录内的文件。</li>
+                        <li>有效期留空表示长期有效，过期后返回 403。</li>
+                        <li>签名密钥需与服务器 <code>sign-key</code> 一致，建议使用至少 16 位的随机字符串。</li>
+                    </ul>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <span>File Download Agent</span>
+        <a href="https://github.com/junlongzzz/file-download-agent" target="_blank" rel="noopener">GitHub</a>
+    </footer>
 </div>
 
-<div class="section">
-    <h2>WebDAV 文件访问</h2>
-    <p>通过 WebDAV，您可以访问和管理文件。支持 HTTP 基本认证。只有在同时配置了用户名和密码后，基本认证才会生效。</p>
-    <p>访问地址: <strong>/webdav/</strong></p>
-    <p>认证用户名: <strong>&lt;your_webdav_user&gt; (默认: anonymous)</strong></p>
-    <p>认证密码: <strong>&lt;your_webdav_pass&gt; (默认: &lt;your_sign_key&gt;)</strong></p>
-</div>
+<script>
+    (function () {
+        'use strict';
 
-<footer>
-    <p>
-        Powered by <a href="https://github.com/junlongzzz/file-download-agent" target="_blank">File Download Agent</a>
-    </p>
-</footer>
+        var byId = function (id) {
+            return document.getElementById(id);
+        };
 
+        var form = byId('generator-form');
+        var schemeRoot = byId('scheme');
+        var schemeTrigger = byId('scheme-trigger');
+        var schemeMenu = byId('scheme-menu');
+        var schemeValue = byId('scheme-value');
+        var schemeOptions = Array.prototype.slice.call(schemeMenu.querySelectorAll('.scheme-option'));
+        var currentScheme = 'https';
+        var urlInput = byId('url');
+        var urlHint = byId('url-hint');
+        var filenameInput = byId('filename');
+        var expireInput = byId('expire');
+        var signKeyInput = byId('signKey');
+        var submitBtn = byId('submit-btn');
+        var submitLabel = submitBtn.querySelector('.btn-label');
+        var message = byId('message');
+        var output = byId('output');
+        var linkInput = byId('downloadLink');
+        var copyBtn = byId('copy-btn');
+        var openLink = byId('open-link');
+        var themeBtn = byId('theme-toggle');
+        var revealBtn = byId('reveal-key');
+        var webdavUrl = byId('webdav-url');
+        var copyWebdavBtn = byId('copy-webdav');
+
+        var defaultSubmitLabel = submitLabel.textContent;
+
+        var schemeConfig = {
+            https: {
+                placeholder: 'example.com/file.zip',
+                hint: '填写主机名和路径，例如 example.com/file.zip；也可直接粘贴完整 URL。'
+            },
+            http: {
+                placeholder: 'example.com/file.zip',
+                hint: '填写主机名和路径，例如 example.com/file.zip；也可直接粘贴完整 URL。'
+            },
+            file: {
+                placeholder: 'sub/file.zip',
+                hint: '填写服务器下载目录内的相对路径，例如 sub/file.zip；可省略 file:// 前缀。'
+            }
+        };
+
+        webdavUrl.textContent = '';
+        webdavUrl.append(window.location.origin + '/');
+        webdavUrl.append(document.createElement('wbr'));
+        webdavUrl.append('webdav/');
+
+        function pad(n) {
+            return String(n).padStart(2, '0');
+        }
+
+        function setMessage(text, kind) {
+            if (!text) {
+                message.hidden = true;
+                message.textContent = '';
+                message.className = 'message';
+                return;
+            }
+            message.textContent = text;
+            message.className = 'message' + (kind ? ' is-' + kind : '');
+            message.hidden = false;
+        }
+
+        function setMinExpirationTime() {
+            var now = new Date();
+            expireInput.min = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) +
+                'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        }
+
+        function parseLocalDateTime(value) {
+            var parts = value.split('T');
+            if (parts.length !== 2) {
+                return NaN;
+            }
+            var dateParts = parts[0].split('-').map(Number);
+            var timeParts = parts[1].split(':').map(Number);
+            if (dateParts.length !== 3 || timeParts.length < 2) {
+                return NaN;
+            }
+            return new Date(
+                dateParts[0], dateParts[1] - 1, dateParts[2],
+                timeParts[0], timeParts[1], timeParts[2] || 0
+            ).getTime();
+        }
+
+        function updateSchemeUi() {
+            var config = schemeConfig[currentScheme] || schemeConfig.https;
+            urlInput.placeholder = config.placeholder;
+            urlHint.textContent = config.hint;
+            urlInput.inputMode = currentScheme === 'file' ? 'text' : 'url';
+        }
+
+        function setScheme(value) {
+            currentScheme = schemeConfig[value] ? value : 'https';
+            schemeValue.textContent = currentScheme + '://';
+            schemeTrigger.setAttribute('aria-label', '下载地址协议，当前 ' + currentScheme + '://');
+            schemeOptions.forEach(function (option) {
+                var selected = option.getAttribute('data-value') === currentScheme;
+                option.classList.toggle('is-selected', selected);
+                option.setAttribute('aria-selected', selected ? 'true' : 'false');
+            });
+            updateSchemeUi();
+        }
+
+        function openSchemeMenu() {
+            if (!schemeMenu.hidden) {
+                return;
+            }
+            schemeMenu.hidden = false;
+            schemeTrigger.setAttribute('aria-expanded', 'true');
+            var selected = schemeMenu.querySelector('.scheme-option[aria-selected="true"]');
+            (selected || schemeOptions[0]).focus();
+        }
+
+        function closeSchemeMenu(returnFocus) {
+            if (schemeMenu.hidden) {
+                return;
+            }
+            schemeMenu.hidden = true;
+            schemeTrigger.setAttribute('aria-expanded', 'false');
+            if (returnFocus) {
+                schemeTrigger.focus();
+            }
+        }
+
+        function selectScheme(value) {
+            closeSchemeMenu(false);
+            setScheme(value);
+            schemeTrigger.focus();
+        }
+
+        // 根据选择的协议拼接完整地址；已带协议的完整 URL 原样保留
+        function buildUrl(scheme, raw) {
+            var value = raw.trim();
+            var match = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//);
+            if (match) {
+                var existing = match[1].toLowerCase();
+                if (['http', 'https', 'file'].indexOf(existing) === -1) {
+                    return null;
+                }
+                setScheme(existing);
+                return existing + '://' + value.slice(match[0].length);
+            }
+            if (scheme === 'file') {
+                var filePath = value.replace(/\\/g, '/').replace(/^\/+/, '');
+                if (!filePath) {
+                    return '';
+                }
+                return 'file:///' + filePath.split('/').map(encodeURIComponent).join('/');
+            }
+            return scheme + '://' + value.replace(/^\/+/, '');
+        }
+
+        function validate() {
+            var raw = urlInput.value.trim();
+            if (!raw) {
+                urlInput.focus();
+                return { error: '请填写下载地址或文件路径。' };
+            }
+
+            var url = buildUrl(currentScheme, raw);
+            if (url === null) {
+                urlInput.focus();
+                return { error: '只支持 http、https 和 file 协议。' };
+            }
+            if (!url) {
+                urlInput.focus();
+                return { error: '请填写文件路径。' };
+            }
+
+            try {
+                var parsed = new URL(url);
+                if (['http:', 'https:', 'file:'].indexOf(parsed.protocol) === -1) {
+                    urlInput.focus();
+                    return { error: '只支持 http、https 和 file 协议。' };
+                }
+                if (parsed.protocol === 'file:') {
+                    if (!parsed.pathname || parsed.pathname === '/') {
+                        urlInput.focus();
+                        return { error: '请填写文件路径。' };
+                    }
+                    if (parsed.pathname.split('/').indexOf('..') !== -1) {
+                        urlInput.focus();
+                        return { error: '文件路径不能包含 ..。' };
+                    }
+                } else if (!parsed.hostname) {
+                    urlInput.focus();
+                    return { error: '请填写有效的主机名。' };
+                }
+            } catch (e) {
+                urlInput.focus();
+                return { error: '下载地址格式不正确。' };
+            }
+
+            var expire = '';
+            if (expireInput.value) {
+                var timestamp = parseLocalDateTime(expireInput.value);
+                if (Number.isNaN(timestamp)) {
+                    expireInput.focus();
+                    return { error: '有效期格式不正确。' };
+                }
+                if (timestamp < Date.now()) {
+                    expireInput.focus();
+                    return { error: '有效期不能早于当前时间。' };
+                }
+                expire = String(Math.floor(timestamp / 1000));
+            }
+
+            return {
+                url: url,
+                filename: filenameInput.value.trim(),
+                expire: expire,
+                sign: signKeyInput.value
+            };
+        }
+
+        function requestLink(params) {
+            return fetch('/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            }).then(function (response) {
+                return response.json().catch(function () {
+                    throw new Error('服务器返回了无法解析的响应。');
+                });
+            });
+        }
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            setMessage('');
+
+            var input = validate();
+            if (input.error) {
+                setMessage(input.error, 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitLabel.textContent = '生成中…';
+
+            requestLink({
+                url: input.url,
+                filename: input.filename,
+                expire: input.expire,
+                sign: input.sign
+            }).then(function (result) {
+                if (result.code === 200 && result.data) {
+                    var link = new URL('/download?enc=' + encodeURIComponent(result.data), window.location.href).href;
+                    linkInput.value = link;
+                    openLink.href = link;
+                    output.hidden = false;
+                    setMessage('链接已生成。', 'success');
+                    linkInput.focus();
+                    linkInput.select();
+                    copyBtn.textContent = '复制链接';
+                } else if (result.code === 403) {
+                    setMessage('签名密钥不正确或未填写。服务器设置了 sign-key 时必须填写相同的值。', 'error');
+                    signKeyInput.focus();
+                } else if (result.code === 429) {
+                    setMessage('尝试次数过多，请稍后再试。', 'error');
+                    signKeyInput.focus();
+                } else {
+                    setMessage(result.msg || '生成失败，请稍后重试。', 'error');
+                }
+            }).catch(function (error) {
+                setMessage(error.message || '请求失败，请检查网络后重试。', 'error');
+            }).then(function () {
+                submitBtn.disabled = false;
+                submitLabel.textContent = defaultSubmitLabel;
+            });
+        });
+
+        function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text).then(function () {
+                    return true;
+                }).catch(function () {
+                    return fallbackCopy(text);
+                });
+            }
+            return Promise.resolve(fallbackCopy(text));
+        }
+
+        function fallbackCopy(text) {
+            var area = document.createElement('textarea');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            area.style.position = 'fixed';
+            area.style.top = '-1000px';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            area.select();
+            var ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (e) {
+                ok = false;
+            }
+            area.remove();
+            return ok;
+        }
+
+        copyBtn.addEventListener('click', function () {
+            if (!linkInput.value) {
+                return;
+            }
+            copyText(linkInput.value).then(function (ok) {
+                if (ok) {
+                    copyBtn.textContent = '已复制';
+                    setMessage('链接已复制到剪贴板。', 'success');
+                    window.setTimeout(function () {
+                        copyBtn.textContent = '复制链接';
+                    }, 1600);
+                } else {
+                    linkInput.focus();
+                    linkInput.select();
+                    setMessage('无法自动复制，请手动复制选中的链接。', 'error');
+                }
+            });
+        });
+
+        copyWebdavBtn.addEventListener('click', function () {
+            copyText(webdavUrl.textContent).then(function (ok) {
+                copyWebdavBtn.textContent = ok ? '已复制' : '复制失败';
+                window.setTimeout(function () {
+                    copyWebdavBtn.textContent = '复制地址';
+                }, 1600);
+            });
+        });
+
+        linkInput.addEventListener('focus', function () {
+            linkInput.select();
+        });
+
+        revealBtn.addEventListener('click', function () {
+            var reveal = signKeyInput.type === 'password';
+            signKeyInput.type = reveal ? 'text' : 'password';
+            revealBtn.textContent = reveal ? '隐藏' : '显示';
+            revealBtn.setAttribute('aria-label', reveal ? '隐藏签名密钥' : '显示签名密钥');
+        });
+
+        themeBtn.addEventListener('click', function () {
+            var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = next;
+            try {
+                localStorage.setItem('fda-theme', next);
+            } catch (e) {
+                // 忽略存储失败
+            }
+            themeBtn.setAttribute('aria-label', next === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+        });
+
+        schemeTrigger.addEventListener('click', function () {
+            if (schemeMenu.hidden) {
+                openSchemeMenu();
+            } else {
+                closeSchemeMenu(true);
+            }
+        });
+
+        schemeTrigger.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                openSchemeMenu();
+            }
+        });
+
+        schemeMenu.addEventListener('click', function (event) {
+            var option = event.target.closest('.scheme-option');
+            if (option) {
+                selectScheme(option.getAttribute('data-value'));
+            }
+        });
+
+        schemeMenu.addEventListener('keydown', function (event) {
+            var index = schemeOptions.indexOf(document.activeElement);
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSchemeMenu(true);
+                return;
+            }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                var next = event.key === 'ArrowDown' ? index + 1 : index - 1;
+                if (next < 0) {
+                    next = schemeOptions.length - 1;
+                }
+                if (next >= schemeOptions.length) {
+                    next = 0;
+                }
+                schemeOptions[next].focus();
+                return;
+            }
+            if (event.key === 'Home' || event.key === 'End') {
+                event.preventDefault();
+                schemeOptions[event.key === 'Home' ? 0 : schemeOptions.length - 1].focus();
+                return;
+            }
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                if (index !== -1) {
+                    selectScheme(schemeOptions[index].getAttribute('data-value'));
+                }
+                return;
+            }
+            if (event.key === 'Tab') {
+                event.preventDefault();
+                closeSchemeMenu(false);
+                (event.shiftKey ? schemeTrigger : urlInput).focus();
+            }
+        });
+
+        document.addEventListener('pointerdown', function (event) {
+            if (!schemeMenu.hidden && !schemeRoot.contains(event.target)) {
+                closeSchemeMenu(false);
+            }
+        });
+
+        schemeRoot.addEventListener('focusout', function (event) {
+            if (!schemeRoot.contains(event.relatedTarget)) {
+                closeSchemeMenu(false);
+            }
+        });
+
+        urlInput.addEventListener('input', function () {
+            // 粘贴完整 URL 时，让协议选择器跟随地址变化
+            var match = urlInput.value.trim().match(/^(https?|file):\/\//i);
+            if (match) {
+                var scheme = match[1].toLowerCase();
+                if (currentScheme !== scheme) {
+                    setScheme(scheme);
+                }
+            }
+            if (message.classList.contains('is-error')) {
+                setMessage('');
+            }
+        });
+
+        setMinExpirationTime();
+        setScheme('https');
+        themeBtn.setAttribute('aria-label',
+            document.documentElement.dataset.theme === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+    })();
+</script>
 </body>
 </html>

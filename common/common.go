@@ -38,20 +38,34 @@ func FormatBytes(bytes int64) string {
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
+// 客户端 IP 字符串长度上限，避免伪造的超长 X-Forwarded-For 放大限流器内存
+const maxRealIPLen = 128
+
+// truncateRealIP 截断异常长的客户端 IP 字符串，正常 IP 远小于上限
+func truncateRealIP(ip string) string {
+	if len(ip) > maxRealIPLen {
+		return ip[:maxRealIPLen]
+	}
+	return ip
+}
+
 // GetRealIP 获取请求的真实IP地址
 func GetRealIP(r *http.Request) string {
 	forwardedFor := r.Header.Get("X-Forwarded-For")
 	realIP := r.Header.Get("X-Real-IP")
 
-	// X-Forwarded-For可能包含多个IP地址，第一个是真实IP
+	// X-Forwarded-For可能包含多个IP地址，第一个是真实IP。
+	// 直接截取第一个逗号前的内容，避免为超长头分配整个切片。
 	if forwardedFor != "" {
-		ips := strings.Split(forwardedFor, ",")
-		return strings.TrimSpace(ips[0])
+		if index := strings.IndexByte(forwardedFor, ','); index >= 0 {
+			forwardedFor = forwardedFor[:index]
+		}
+		return truncateRealIP(strings.TrimSpace(forwardedFor))
 	}
 
 	// 如果X-Forwarded-For为空，使用X-Real-IP
 	if realIP != "" {
-		return realIP
+		return truncateRealIP(realIP)
 	}
 
 	// 如果都为空，直接获取RemoteAddr
@@ -70,5 +84,5 @@ func GetRealIP(r *http.Request) string {
 		addr = addr[1 : len(addr)-1]
 	}
 
-	return addr
+	return truncateRealIP(addr)
 }
