@@ -73,6 +73,13 @@ Dockerfile           # Multi-stage Docker build
   written directly to stderr (not through `slog`) so it remains visible regardless of
   `-log-level`, but it changes on every restart — set `-webdav-pass`/`-sign-key` in production.
   WebDAV authentication cannot be turned off; disable the server with `-webdav-enable=false`.
+- The configured Basic credentials are also accepted as a URL path prefix:
+  `/webdav/<base64url(username:password)>/...` is served equivalently, for clients that can only be
+  given a URL and cannot send an `Authorization` header. The segment is the `Authorization: Basic`
+  credential blob re-encoded with URL-safe Base64 (no padding; standard Base64 can contain `/`,
+  which breaks a path segment). There is no separate token or flag; the segment is compared in
+  constant time. Base64 is encoding, not encryption: anyone who can read the URL can recover the
+  credentials, and they appear in access logs and browser history.
 - The HTTP server sets `ReadHeaderTimeout` and `IdleTimeout` (but not `WriteTimeout`, to avoid
   truncating large downloads) and shuts down gracefully via `http.Server.Shutdown` on signal.
 - `-forward-request-headers`/`FDA_FORWARD_REQUEST_HEADERS` and
@@ -234,6 +241,23 @@ failures. `main.go` always supplies a non-empty password —
 `signKey` when available, otherwise a random password printed at startup — so authentication is
 always on. Use `-webdav-enable=false` to turn the server off entirely.
 
+The configured Basic credentials are also accepted in the URL path, for clients that can only be
+given a URL. When the first path segment after `/webdav/` equals the URL-safe Base64 (no padding)
+of `<username>:<password>` — the same credential blob as an `Authorization: Basic` header, with
+`-`/`_` instead of `+`/`/` — the request is served by a second `webdav.Handler` whose `Prefix` is
+`/webdav/<credential>` and which shares the first handler's `FileSystem` and `LockSystem`.
+`SetBasicAuth` derives and rebuilds this entry point whenever the credentials change; there is no
+separate token or configuration option. Because `stripPrefix` removes the entire prefix, both
+handlers see identical internal paths, so file locks are not split between the two entry points,
+and PROPFIND `href` values (`path.Join(h.Prefix, reqPath)`) as well as MOVE/COPY `Destination`
+paths keep the credential — mount-style clients stay authenticated. The segment is compared with
+`constantTimeEqual` and checked **before** Basic Auth, so a client that also synthesizes an
+`Authorization` header from URL userinfo still works; wrong or missing path credentials fall
+through to the normal Basic flow and its rate limiting, while a successful path request resets the
+failure counter. Base64 is encoding, not encryption: a URL containing it exposes the credentials
+to anyone who can read it (logs, proxies, history). Basic Auth is unchanged and remains the
+primary mechanism.
+
 ### Static pages (`handler/static.go` + `static/`)
 
 `StaticHandler` rewrites any path without the `/static` prefix to `/static/<path>` and hands it
@@ -244,6 +268,11 @@ the URL field has a protocol selector and omits the scheme prefix for `file://` 
 CSS and JS are inline, and the page uses no external assets so it works fully offline. Theme
 follows `prefers-color-scheme`, can be toggled manually, and the choice is persisted in
 `localStorage`.
+
+The WebDAV panel includes a client-side helper for clients that can only be given a URL: the
+user types the username and password, and the page derives
+`/webdav/<base64url(username:password)>/` entirely in the browser (`TextEncoder`/`btoa`; the
+credentials are never sent to the server) and offers the result for copying.
 
 ## Code Style Guidelines
 
@@ -339,14 +368,19 @@ import (
 - Request/response header forwarding uses explicit whitelists; `Authorization` and `Cookie` are
   forwarded only when listed in `WithForwardRequestHeaders`/`-forward-request-headers`.
 - SSRF protection: pre-request DNS/IP checks, redirect checks, and a dial-layer IP check.
-- WebDAV is protected by default authentication; POST bodies are additionally limited by
-  `http.MaxBytesReader`. WebDAV PUT bodies have no size limit of their own.
+- WebDAV is protected by Basic authentication; the same credential blob (URL-safe Base64) is also
+  accepted as a URL path prefix (`/webdav/<base64url(username:password)>/`) for clients that
+  cannot send auth headers. POST bodies are additionally limited by `http.MaxBytesReader`.
+  WebDAV PUT bodies have no size limit of their own.
 
 ### Configuration
 
 - Environment variables (`FDA_*`) provide defaults; CLI flags override them.
 - Default port: `18080`. Default download dir: `files` next to the executable.
 - WebDAV enabled by default; disable with `-webdav-enable=false`.
+- WebDAV also accepts the Basic credential blob (URL-safe Base64 of `username:password`) as a URL
+  path prefix (`/webdav/<base64url(username:password)>/`) for clients without Basic Auth support;
+  there is no separate token or configuration option.
 - `-auth-max-failures`/`FDA_AUTH_MAX_FAILURES` (default 10) and
   `-auth-failure-window`/`FDA_AUTH_FAILURE_WINDOW` (default 1m) tune the failed-auth limiter.
   Both `/download` and WebDAV key on `common.GetRealIP(r)`, so run behind a trusted reverse

@@ -607,6 +607,33 @@
             font-size: 11.5px;
         }
 
+        .webdav-path {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px dashed var(--line);
+        }
+
+        .webdav-path .field-hint {
+            margin-top: 0;
+        }
+
+        .webdav-path-fields {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .webdav-path-fields input {
+            min-height: 38px;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        .webdav-path-output {
+            margin-top: 14px;
+            padding-top: 14px;
+        }
+
         .mini-btn {
             padding: 3px 8px;
             border: 1px solid var(--line-strong);
@@ -843,6 +870,26 @@
                                 <dd>sign-key，或启动日志中的随机密码</dd>
                             </div>
                         </dl>
+                        <div class="webdav-path">
+                            <p class="field-hint">
+                                只能填写 URL、无法设置认证头的客户端，可使用带凭据的地址。凭据为
+                                <code>base64url(用户名:密码)</code>，生成过程仅在浏览器本地进行，
+                                不会把输入提交到服务器；但地址可被还原，请勿公开分享。
+                            </p>
+                            <div class="webdav-path-fields">
+                                <input id="webdav-user-input" type="text" placeholder="用户名（默认 anonymous）"
+                                       autocomplete="username" aria-label="WebDAV 用户名">
+                                <input id="webdav-pass-input" type="password" placeholder="密码"
+                                       autocomplete="current-password" aria-label="WebDAV 密码">
+                            </div>
+                            <div class="output webdav-path-output" id="webdav-path-output" hidden>
+                                <label class="output-label" for="webdav-path-url">带凭据的地址</label>
+                                <input id="webdav-path-url" type="text" readonly>
+                                <div class="output-actions">
+                                    <button class="btn btn-ghost" id="copy-webdav-path" type="button">复制地址</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -896,6 +943,11 @@
         var revealBtn = byId('reveal-key');
         var webdavUrl = byId('webdav-url');
         var copyWebdavBtn = byId('copy-webdav');
+        var webdavUserInput = byId('webdav-user-input');
+        var webdavPassInput = byId('webdav-pass-input');
+        var webdavPathOutput = byId('webdav-path-output');
+        var webdavPathUrl = byId('webdav-path-url');
+        var copyWebdavPathBtn = byId('copy-webdav-path');
 
         var defaultSubmitLabel = submitLabel.textContent;
 
@@ -1201,6 +1253,51 @@
                     copyWebdavBtn.textContent = '复制地址';
                 }, 1600);
             });
+        });
+
+        function base64UrlEncode(text) {
+            var binary;
+            if (window.TextEncoder) {
+                var bytes = new TextEncoder().encode(text);
+                binary = '';
+                for (var i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+            } else {
+                // 兼容旧浏览器；encodeURIComponent 输出 UTF-8 百分号编码
+                binary = unescape(encodeURIComponent(text));
+            }
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        function updateWebdavPathUrl() {
+            if (!webdavUserInput.value || !webdavPassInput.value) {
+                webdavPathUrl.value = '';
+                webdavPathOutput.hidden = true;
+                return;
+            }
+            var credential = base64UrlEncode(webdavUserInput.value + ':' + webdavPassInput.value);
+            webdavPathUrl.value = window.location.origin + '/webdav/' + credential + '/';
+            webdavPathOutput.hidden = false;
+        }
+
+        webdavUserInput.addEventListener('input', updateWebdavPathUrl);
+        webdavPassInput.addEventListener('input', updateWebdavPathUrl);
+
+        copyWebdavPathBtn.addEventListener('click', function () {
+            if (!webdavPathUrl.value) {
+                return;
+            }
+            copyText(webdavPathUrl.value).then(function (ok) {
+                copyWebdavPathBtn.textContent = ok ? '已复制' : '复制失败';
+                window.setTimeout(function () {
+                    copyWebdavPathBtn.textContent = '复制地址';
+                }, 1600);
+            });
+        });
+
+        webdavPathUrl.addEventListener('focus', function () {
+            webdavPathUrl.select();
         });
 
         linkInput.addEventListener('focus', function () {

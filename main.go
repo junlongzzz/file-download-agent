@@ -205,6 +205,10 @@ func main() {
 		// 初始化 webdav handler
 		webDavHandler = handler.NewWebDavHandler(webDavDir, webDavUser, webDavPass)
 		webDavHandler.SetAuthLimit(authMaxFailures, authFailureWindow)
+		// 路径凭据认证直接复用 Basic 凭据，没有独立 token，也无需额外配置
+		if webDavHandler.PathAuthEnabled() {
+			slog.Info("WebDAV also accepts basic credentials in the URL path (/webdav/<base64url(username:password)>/) for clients that cannot send auth headers")
+		}
 	} else {
 		slog.Info("WebDAV is disabled")
 		webDavHandler = nil
